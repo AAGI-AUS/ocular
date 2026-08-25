@@ -1,0 +1,31 @@
+Package: ocular
+Type: Package
+Title: Spectral Indices and Sample-Free Field Boundary Delineation
+Version: 0.1.0
+Authors@R:
+    person(given = "Aidan",
+           family = "Moller",
+           email = "aidan.moller@adelaide.edu.au",
+           role = c("aut", "cre"))
+Description: Tools for obtaining high quality spectral indices from reusable
+    remote sensing pipelines. Landsat and Sentinel-2 satellite imagery are
+    retrieved as scenes through the Microsoft Planetary Computer
+    SpatioTemporal Asset Catalog (STAC). Data quality and temporal coverage can
+    be improved before outputting as a data frame or raster, using cloud
+    masking, cloud cover filtering, and reusable pipelines with highly
+    customisable field boundary delineation configurations.
+URL: https://github.com/AAGI-AUS/ocular
+BugReports: https://github.com/AAGI-AUS/ocular/issues
+License: GPL (>= 3)
+Encoding: UTF-8
+Language: en-GB
+Depends: R (>= 4.1.0)
+Imports: rstac (>= 1.0.0), sf (>= 1.0.15), stats, terra (>= 1.7.65),
+        utils
+Suggests: testthat (>= 3.0.0), duckdb (>= 1.5.1), DBI,
+        knitr, rmarkdown
+VignetteBuilder: knitr
+Config/testthat/edition: 3
+Roxygen: list(markdown = FALSE)
+RoxygenNote: 7.3.3
+NeedsCompilation: no

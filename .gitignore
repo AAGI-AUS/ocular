@@ -1,0 +1,15 @@
+.DS_Store
+.Rhistory
+.Rproj.user/
+*.Rproj
+.check-artifacts/
+.test-artifacts/
+tests/.review-check/
+check/
+*.tar.gz
+*.Rcheck/
+vignettes/*.html
+/.RData
+/.Ruserdata
+/.Renviron
+/.Rprofile

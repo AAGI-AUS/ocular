@@ -1,0 +1,14 @@
+^ocular[.]Rproj$
+^.*[.]DS_Store$
+^[.]Rhistory$
+^[.]check-artifacts$
+^[.]test-artifacts$
+^tests/testthat/[.]test-artifacts$
+^tests/manual$
+^tests/[.]review-check$
+^tests/[.]check-artifacts$
+^vignettes/.*[.]html$
+^check$
+^.*\.Rproj$
+^\.Rproj\.user$
+^LICENSE\.md$

@@ -1,0 +1,189 @@
+---
+title: "Experimental features"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Experimental features}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = TRUE
+)
+library(ocular)
+```
+
+`ocular` includes two experimental paths: Landsat-MODIS data fusion and an
+optional field boundary prior. Both can affect an analysis and therefore need
+validation for the locations, dates, inputs, and intended use. Neither feature
+establishes general accuracy on its own.
+
+The examples in this vignette require remote data or a user-supplied field
+boundary file and are not evaluated when the package is built.
+
+## Landsat-MODIS data fusion
+
+`add_modis()` uses daily MCD43A4 NBAR data to estimate additional values for
+vegetative indices (VI) on dates in the requested period that are not covered
+by Landsat. A candidate MCD43A4 date is used only when no Landsat acquisition
+falls within three days. The nearest Landsat acquisition provides the anchor,
+and each estimate is created on the Landsat grid.
+
+The appended scenes are estimates, not satellite observations. They extend
+the output series but are excluded from the multi-temporal spectral feature
+stack used for field boundary delineation.
+
+### Adding estimated dates
+
+Use an explicit Landsat source and a supported index. The location, dates, and
+extent below are illustrative.
+
+```{r add-fused-scenes, eval=FALSE}
+rs <- get_rs(
+  longitude = 147.227906,
+  latitude = -33.0675167,
+  start_date = "2016-05-18",
+  end_date = "2016-09-21",
+  index_name = "NDVI",
+  source = "landsat-8",
+  x_metres = 1000
+)
+
+rs_fused <- add_modis(rs)
+field_fused <- boundary_delineation(rs_fused)
+fused_series <- as_time_series(field_fused)
+```
+
+The time series includes `is_fused` so observed Landsat dates can be separated
+from estimates. `anchor_mae` and `anchor_nmae` describe mismatch at the Landsat
+anchor used to construct a fused scene. They are diagnostics for that
+construction step, not held-out prediction errors.
+
+`add_modis()` returns a Sentinel-2 object unchanged. It also leaves an object
+unchanged when fusion has already been applied, no suitable MCD43A4 scenes are
+available, or the selected index lacks the required Landsat and MCD43A4 band
+mappings.
+
+### Leave-one-out validation
+
+`validate_data_fusion()` holds out each available Landsat scene in turn,
+estimates it from the remaining inputs, and compares the estimate with the
+observation. The standalone validation call must use the same output index as
+the workflow being assessed; otherwise its default is EVI2.
+
+```{r validate-fusion, eval=FALSE}
+fusion_validation <- validate_data_fusion(
+  147.227906,
+  latitude = -33.0675167,
+  start_date = "2016-05-18",
+  end_date = "2016-09-21",
+  index_name = "NDVI",
+  source = "landsat-8",
+  x_metres = 1000
+)
+
+fusion_validation
+```
+
+The result reports RMSE, MAE, bias, Pearson correlation, and supporting counts.
+These values describe leave-one-out agreement for the selected query. They do
+not demonstrate performance at other sites or periods and do not replace
+comparison with independent data.
+
+Validation returns `NULL` when fewer than two Landsat scenes or no usable
+MCD43A4 scenes are available. Metric values are `NA` where fewer than
+`min_valid_n` paired values support them; its default is four. Supporting
+counts remain available for checking data sufficiency.
+
+Fusion remains experimental. In particular, product-specific MCD43A4 quality
+layers are not currently applied. Retain `is_fused` in downstream data, report
+the validation conditions, and avoid presenting estimated dates as observed
+Landsat acquisitions.
+
+## Optional field boundary prior
+
+`add_ftw_prior()` reads a user-supplied field boundary GeoParquet and selects
+the polygon containing the supplied point. Fields of The World (FTW) is one
+field boundary dataset that can be supplied in this form. fiboa is a schema,
+not another name for the FTW dataset; the default geometry and date column
+names follow that schema and can be overridden for another compatible export.
+
+The selected polygon can supply calibration support. When it also has a usable
+source year, it can apply an age-weighted soft prior during the initial area
+search. An undated polygon provides calibration support without that
+age-weighted prior.
+
+### Attaching a prior
+
+Retrieve the `ocular` object first, then provide the field boundary file and
+its geometry CRS.
+
+```{r attach-field-prior, eval=FALSE}
+rs <- get_rs(
+  longitude = 147.227906,
+  latitude = -33.0675167,
+  start_date = "2016-05-18",
+  end_date = "2016-09-21",
+  index_name = "NDVI",
+  source = "landsat-8",
+  x_metres = 1000
+)
+
+rs_prior <- add_ftw_prior(
+  rs,
+  source = "/path/to/field-boundaries.parquet",
+  crs = 4326
+)
+
+field_prior <- boundary_delineation(rs_prior)
+```
+
+The default columns are `geometry` and `determination_datetime`. Use
+`geometry_col` and `datetime_col` when the file uses different names; set
+`datetime_col = NULL` when it has no observation date.
+
+Local queries require the optional `duckdb` and `DBI` packages and a DuckDB
+spatial extension that is already installed. Remote files additionally
+require the local `httpfs` extension, and extracting a source year may require
+`icu`. `ocular` does not install or download DuckDB extensions at runtime.
+
+### Interpreting agreement diagnostics
+
+`diagnose_against_ftw()` calculates pixel-level IoU, F1, precision, recall,
+and supporting counts between a delineation and a reference polygon.
+
+```{r diagnose-prior, eval=FALSE}
+in_sample_diagnostic <- diagnose_against_ftw(field_prior)
+
+# held_out_field_boundary is a user-supplied sf, sfc, or SpatVector object
+independent_diagnostic <- diagnose_against_ftw(
+  field_prior,
+  reference = held_out_field_boundary
+)
+```
+
+The first call compares the result with the same polygon that supplied the
+prior. It is an in-sample diagnostic because that polygon may have influenced
+the delineation. Use a separate held-out reference, as in the second call,
+when assessing accuracy.
+
+Whether an FTW or other compatible prior improves field boundary delineation
+requires independent validation. Record the source file, schema mapping,
+boundary date, and whether the comparison reference was also used as a prior.
+
+## Before using an experimental result
+
+- Validate the selected index, site, period, and input configuration.
+- Keep observed and estimated dates distinguishable in fusion outputs.
+- Treat agreement with a guiding field polygon as in-sample evidence.
+- Report missing quality layers, missing boundary dates, and other limitations
+  that affect interpretation.
+
+See `?add_modis`, `?validate_data_fusion`, `?add_ftw_prior`, and
+`?diagnose_against_ftw` for the complete interfaces.

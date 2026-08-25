@@ -1,0 +1,163 @@
+---
+title: "Getting started with ocular"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 2
+vignette: >
+  %\VignetteIndexEntry{Getting started with ocular}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = TRUE
+)
+library(ocular)
+```
+
+`ocular` retrieves multispectral satellite data and calculates spectral
+indices for crop monitoring and agricultural research, including vegetative
+indices (VI). This vignette follows one query from image retrieval to a
+delineated raster and a time series of VI values.
+
+Remote examples are not run when the vignette is built. They query the
+Microsoft Planetary Computer Data Catalog and should be run where network
+access is available.
+
+## The core workflow
+
+A query needs a point within the targeted crop production zone, a date range,
+and the dimensions of the surrounding analysis area. Coordinates are supplied
+in WGS 84. At least one of `x_metres` and `y_metres` is required; when one is
+omitted, `ocular` uses the supplied dimension for both.
+
+```{r retrieve-scenes, eval=FALSE}
+rs <- get_rs(
+  longitude = -96.80342,
+  latitude = 33.26425,
+  start_date = "2005-03-15",
+  end_date = "2005-09-05",
+  x_metres = 1000,
+  index_name = "NDVI",
+  source = "landsat-5"
+)
+
+rs
+```
+
+`get_rs()` returns an `ocular` object containing the query, the retrieved STAC
+scenes, and the parameter settings that subsequent functions will use. The
+supplied point is also the reference, or seed, for field boundary delineation.
+
+Run the default delineation once, then reuse the result for each required
+output.
+
+```{r delineate-and-convert, eval=FALSE}
+field <- boundary_delineation(rs)
+
+vi_raster <- as_raster(field)
+vi_series <- as_time_series(field)
+
+vi_raster
+head(vi_series)
+```
+
+`boundary_delineation()` stores the resulting field mask on the `ocular`
+object. By default, `as_raster()` calculates the median value for each pixel
+across the retrieved scenes. `as_time_series()` calculates the mean value
+within the field for each day; `time_aggregate` can instead group results by
+month or year.
+
+`ocular` field boundary delineation minimises the need for labelled training
+data by using the supplied point as a reference (seed) for the retrieved
+multi-temporal spectral feature stack. It does not classify crop production
+status, and its result should be checked for the intended location and use.
+
+If delineation returns an empty mask, raster values are `NA` and the time
+series has no rows. `ocular` does not replace an empty result with the full
+analysis area.
+
+## Retrieval choices
+
+### Image source
+
+The explicit source above keeps the example within Landsat 5/7. With
+`source = "auto"`, the start date determines the collection: Sentinel-2 from
+1 July 2015, Landsat 8/9 from 1 April 2013, and Landsat 5/7 for earlier dates.
+Set the source explicitly when a study requires a consistent sensor family.
+
+### Scene filtering and pixel masking
+
+`max_cloud_cover` sets a scene-level cloud-cover ceiling using STAC metadata.
+It does not mask individual pixels. The optional `scl_classes` argument
+excludes sensor-specific Sentinel-2 SCL class values or Landsat `QA_PIXEL` bit
+positions. Its default, `NULL`, applies no per-pixel cloud or quality mask.
+Consult `?get_rs` for the accepted ranges and choose exclusions appropriate to
+the source and analysis rather than transferring class values between sensors.
+
+### Output and delineation indices
+
+`index_name` controls the VI values returned by `as_raster()` and
+`as_time_series()`. Field boundary delineation uses `search_index`, which is
+`"EVI2"` by default. The two can be set independently. Supply non-default
+delineation settings through `params` at retrieval so that they are stored on
+the object.
+
+`search_start_date` and `search_end_date` can restrict the scenes used to
+construct boundary evidence. They must fall within the retrieval period and do
+not remove dates from the output series.
+
+## Working with the analysis area
+
+Calling an output function before delineation returns values for the full
+analysis area:
+
+```{r full-analysis-area, eval=FALSE}
+analysis_raster <- as_raster(rs)
+analysis_series <- as_time_series(rs)
+```
+
+If an independently prepared field polygon is available, pass an `sf` or `sfc`
+geometry to `mask`. This uses the supplied geometry directly and bypasses
+delineation.
+
+```{r supplied-mask, eval=FALSE}
+# field_boundary is a user-supplied sf or sfc object
+vi_raster <- as_raster(rs, mask = field_boundary)
+vi_series <- as_time_series(rs, mask = field_boundary)
+```
+
+The mask may use any coordinate reference system, but it must have a defined
+CRS and contain at least one non-empty geometry.
+
+## Parameter settings
+
+`rs_params()` returns the complete validated parameter list. Settings supplied
+to `get_rs()` are stored in `rs$params` and provide the baseline for later
+stages. A named argument supplied to a processing function overrides that
+setting for the current call without changing the stored list.
+
+```{r parameter-example}
+example_params <- rs_params(
+  perimeter_margins = c(0.30, 0.70),
+  local_alive_density = 0.30
+)
+
+example_params[c("perimeter_margins", "local_alive_density")]
+```
+
+These are illustrative settings, not general recommendations. Parameter
+effects and the four delineation stages are covered in the next vignette.
+
+## Where to continue
+
+- `vignette("ocular-build-pipeline")` explains field boundary delineation,
+  direct stage calls, reusable pipelines, and multi-site processing.
+- `vignette("ocular-experimental-features")` covers Landsat-MODIS data fusion,
+  leave-one-out validation, and optional field boundary priors.
+- `?get_rs`, `?rs_params`, and `?boundary_delineation` provide the complete API
+  reference.
