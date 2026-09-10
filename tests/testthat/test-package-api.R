@@ -25,7 +25,6 @@ test_that("rs_params() returns a non-empty named list of defaults", {
 test_that("the installed namespace and package identity are lowercase ocular", {
   desc <- utils::packageDescription("ocular")
   expect_identical(desc$Package, "ocular")
-  expect_identical(desc$Version, "0.1.0")
   expect_identical(desc$URL, "https://github.com/AAGI-AUS/ocular")
   expect_identical(desc$BugReports,
                    "https://github.com/AAGI-AUS/ocular/issues")

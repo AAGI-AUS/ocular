@@ -1,3 +1,8 @@
+# ocular 0.1.1
+
+- Correct raster assembly when band lists or scene lists have names. Preserve
+  band identifiers during stacking and merge scenes across acquisition dates.
+
 # ocular 0.1.0
 
 ## Parameter handling
