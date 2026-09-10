@@ -1,7 +1,7 @@
 Package: ocular
 Type: Package
 Title: Spectral Indices and Sample-Free Field Boundary Delineation
-Version: 0.1.0
+Version: 0.1.1
 Authors@R:
     person(given = "Aidan",
            family = "Moller",

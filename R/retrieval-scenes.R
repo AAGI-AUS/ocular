@@ -302,7 +302,8 @@ get_rs <- function(longitude,
     stop(".computeIndexFromBands(): missing band(s) ",
          paste(missing, collapse = ", "), call. = FALSE)
   ordered <- .harmoniseBands(bands[needed])   # reused/refetched bands may differ
-  stk <- do.call(c, ordered)
+  stk <- do.call(c, unname(ordered))
+  names(stk) <- names(ordered)
   return(.finiteIndex(lookup_entry$fun(stk)))
 }
 

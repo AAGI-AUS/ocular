@@ -102,7 +102,7 @@
     else terra::project(r, ref_crs, method = method)
   })
   merged <- do.call(terra::merge,
-                    c(aligned, list(algo = 3, method = method,
+                    c(unname(aligned), list(algo = 3, method = method,
                                     na.rm = TRUE)))
   ## algo=3 commonly returns a temporary VRT. Materialise the cropped AOI so
   ## an rs object does not retain a fragile reference to that temporary file.
@@ -361,7 +361,8 @@
       if( any(vapply(bands_merged, is.null, logical(1L))) ) return(NULL)
 
       idx_rast <- tryCatch({
-        stk <- do.call(c, bands_merged)
+        stk <- do.call(c, unname(bands_merged))
+        names(stk) <- names(bands_merged)
         .finiteIndex(idx$fun(stk))
       }, error = function(e) NULL)
       if( is.null(idx_rast) ) return(NULL)
@@ -399,7 +400,8 @@
       bands <- Filter(Negate(is.null), bands)
       if( length(bands) == 0L ) return(NULL)
       bands <- .harmoniseBands(bands)      # S2 mixes 10 m and 20 m assets
-      stk <- do.call(c, bands)
+      stk <- do.call(c, unname(bands))
+      names(stk) <- names(bands)
 
       if( !is.null(cfg$mask_asset) && !is.null(scl_classes) ){
         mb <- read_band(f[["assets"]][[cfg$mask_asset]][["href"]], scale = FALSE)
