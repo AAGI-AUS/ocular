@@ -292,8 +292,15 @@ test_that("interrupts and warnings promoted to errors close the invocation", {
       return(list(error = "unavailable test support"))
     },
     .package = "ocular")
-  withr::local_options(warn = 2L)
-  expect_error(boundary_delineation(rs), "Recalibration for this call failed")
+  previous_warn <- getOption("warn")
+  run_with_warning_errors <- function(){
+
+    previous_options <- options(warn = 2L)
+    on.exit(options(previous_options), add = TRUE)
+    return(boundary_delineation(rs))
+  }
+  expect_error(run_with_warning_errors(), "Recalibration for this call failed")
+  expect_identical(getOption("warn"), previous_warn)
   context <- attr(captured, ".calibration_context", exact = TRUE)
   expect_false(context$active)
   expect_null(context$failures)
