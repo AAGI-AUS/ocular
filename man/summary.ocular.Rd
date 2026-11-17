@@ -15,6 +15,6 @@
 \code{object} invisibly.
 }
 \description{
-Verbose breakdown of every populated group. Use when \code{print.ocular}'s
-compact form is not enough.
+Adds query details, geometry, scene counts, processing state and changed
+parameters to the compact \code{print()} summary.
 }

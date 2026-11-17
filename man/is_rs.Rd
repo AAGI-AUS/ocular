@@ -10,7 +10,7 @@ is_rs(x)
 \item{x}{Any R object.}
 }
 \value{
-Logical.
+\code{TRUE} for an \code{ocular} object, otherwise \code{FALSE}.
 }
 \description{
 Test whether an object is an ocular object

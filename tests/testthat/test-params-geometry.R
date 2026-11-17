@@ -28,6 +28,21 @@ test_that("rs_params validates and normalizes every scalar control", {
   for (call in bad_calls) expect_error(eval(call), info = deparse1(call))
 })
 
+test_that("dates that parse to a year below 1000 are rejected", {
+  expect_error(rs_params(search_start_date = "01/05/2021"),
+               "search_start_date must be a date in YYYY-MM-DD format.",
+               fixed = TRUE)
+  expect_error(rs_params(search_end_date = "31/12/2021"),
+               "search_end_date must be a date in YYYY-MM-DD format.",
+               fixed = TRUE)
+  for (date in list(" 2021-05-01", "2021/05/01", "2021-5-1",
+                    as.Date("2021-05-01"),
+                    as.POSIXct("2021-05-01 10:00:00", tz = "UTC"))) {
+    expect_identical(rs_params(search_start_date = date)$search_start_date,
+                     "2021-05-01")
+  }
+})
+
 test_that("rs_params records explicit defaults and NULL settings", {
   p <- rs_params(area_sensitivity = 0.2, interior_sensitivity = NULL)
   expect_setequal(attr(p, "user_set", exact = TRUE),
@@ -77,7 +92,27 @@ test_that("parameter resolution overlays values without mutating stored params",
     "cannot be changed after get_rs")
   expect_error(
     ocular:::.resolveParams(rs, list(bogus = 1), list()),
-               "Unknown params")
+               "unknown params")
+})
+
+test_that("a complete params list keeps stored fetch-time settings", {
+  rs <- .make_test_rs()
+  rs$params <- rs_params(search_index = "NDVI",
+                         search_start_date = "2021-01-10")
+  p <- ocular:::.resolveParams(rs, rs_params(trace_iter = 5L), list())
+  expect_identical(p$search_index, "NDVI")
+  expect_identical(p$search_start_date, "2021-01-10")
+  expect_identical(p$trace_iter, 5L)
+  expect_setequal(attr(p, "user_set", exact = TRUE),
+                  c("search_index", "search_start_date", "trace_iter"))
+
+  edited <- rs_params(trace_iter = 5L)
+  edited$search_index <- "NBR"
+  expect_error(ocular:::.resolveParams(rs, edited, list()),
+               "cannot be changed after get_rs")
+  expect_error(
+    ocular:::.resolveParams(rs, rs_params(search_index = "EVI2"), list()),
+    "cannot be changed after get_rs")
 })
 
 test_that("calibration baselines respect explicit default ownership", {
@@ -141,7 +176,7 @@ test_that("parameter resolution preserves intentional NULL settings", {
                 attr(supplied, "user_set", exact = TRUE))
   expect_error(
     ocular:::.resolveParams(rs, NULL, list(bogus = NULL)),
-    "Unknown params")
+    "unknown params")
 })
 
 test_that("geometry conversion and bounding boxes validate their inputs", {
@@ -153,7 +188,18 @@ test_that("geometry conversion and bounding boxes validate their inputs", {
   expect_s3_class(bb, "bbox")
   expect_lt(bb[["xmin"]], 117.8)
   expect_gt(bb[["xmax"]], 117.8)
-  expect_error(point_to_bbox(179.999, 0, 1000, 1000), "antimeridian")
+  expect_error(point_to_bbox(179.999, 0, 1000, 1000),
+               paste0("point_to_bbox: the requested area crosses the antimeridian. ",
+                      "Split it into two WGS-84 bounding boxes."), fixed = TRUE)
+})
+
+test_that("point_to_bbox rejects boxes wider than 180 degrees", {
+  half <- metres_to_degrees(-16.8, distance = 2000,
+                            pixel_size = 1000)[["x_degrees"]]
+  expect_error(point_to_bbox(180 - half * 1.0005, -16.8, 2000, 2000),
+               paste0("point_to_bbox: the requested area crosses the antimeridian. ",
+                      "Split it into two WGS-84 bounding boxes."), fixed = TRUE)
+  expect_error(point_to_bbox(0, 84, 1400000, 1000), "antimeridian")
 })
 
 test_that("rs_utm handles ordinary and special UTM zones", {
@@ -167,4 +213,27 @@ test_that("rs_utm handles ordinary and special UTM zones", {
   expect_identical(rs_utm(make_point(15, 75)), "EPSG:32633")
   expect_identical(rs_utm(make_point(180, 0)), "EPSG:32660")
   expect_error(rs_utm(make_point(0, 85)), "outside")
+})
+
+test_that("a complete params list keeps stored and calibrated settings", {
+  rs <- .make_test_rs()
+  rs$params <- rs_params(strictness = "tight")
+  rs$internals$calibration <- list(
+    schema_version = ocular:::.CALIBRATION_SCHEMA_VERSION,
+    baselines = list(area_sensitivity = 0.11))
+
+  complete <- ocular:::.resolveParams(rs, rs_params(trace_iter = 5L), list())
+  partial <- ocular:::.resolveParams(rs, list(trace_iter = 5L), list())
+  expect_identical(complete$strictness, "tight")
+  expect_equal(complete$area_sensitivity, 0.11)
+  expect_identical(complete$trace_iter, 5L)
+  expect_identical(complete, partial)
+
+  edited <- rs_params()
+  edited$area_sensitivity <- 0.3
+  expect_equal(ocular:::.resolveParams(rs, edited, list())$area_sensitivity,
+               0.3)
+  chosen <- ocular:::.resolveParams(
+    rs, rs_params(strictness = "balanced"), list())
+  expect_identical(chosen$strictness, "balanced")
 })

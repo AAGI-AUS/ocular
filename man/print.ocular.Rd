@@ -15,7 +15,6 @@
 \code{x} invisibly.
 }
 \description{
-Compact summary: query line, source line, state line, params line.
-Avoids dumping full rasters / matrices / arrays, which the default
-list printer otherwise floods the terminal with.
+Shows the query, imagery source, mask cell count and non-default settings
+without printing the underlying raster data.
 }

@@ -25,18 +25,19 @@ get_rs(
 \item{longitude, latitude}{WGS-84 coordinates at the centre of the analysis
 area.}
 
-\item{start_date, end_date}{Start and end of the retrieval period.}
+\item{start_date, end_date}{Start and end of the retrieval period, both
+inclusive.}
 
 \item{index_name}{Index calculated for the output scenes and used by
 \code{as_raster()} and \code{as_time_series()}. Field boundary delineation
 uses \code{search_index} instead (\code{"EVI2"} by default).}
 
 \item{source}{Image source. \code{"auto"} selects a source according to
-\code{start_date}; alternatives are \code{"sentinel-2"},
+\code{start_date}. Alternatives are \code{"sentinel-2"},
 \code{"landsat-8"} (Landsat 8/9), and \code{"landsat-5"} (Landsat 5/7).}
 
 \item{x_metres, y_metres}{Width and height of the analysis area in metres.
-At least one is required; if one is \code{NULL}, the other is used for
+At least one is required. If one is \code{NULL}, the other is used for
 both dimensions.}
 
 \item{max_cloud_cover}{Maximum scene-level cloud cover, from 0 to 100,
@@ -45,7 +46,7 @@ permitted by the STAC search.}
 \item{scl_classes}{Optional unique non-negative integers to exclude from
 pixels: Sentinel-2 SCL class values from 0 to 11, or Landsat
 \code{QA_PIXEL} bit positions from 0 to 15. \code{NULL} applies no
-per-pixel class or bit mask; \code{max_cloud_cover} still filters scenes
+per-pixel class or bit mask. \code{max_cloud_cover} still filters scenes
 using STAC metadata.}
 
 \item{params}{Optional complete or partial list of settings accepted by
@@ -53,7 +54,7 @@ using STAC metadata.}
 
 \item{search_index, search_start_date, search_end_date}{Inline overrides
 for the index and date range used for field boundary delineation.
-Search dates must lie within \code{start_date} and \code{end_date}; they
+Search dates must lie within \code{start_date} and \code{end_date}. They
 do not restrict the dates available to output functions. \code{NULL}
 defers to \code{params}.}
 }
@@ -64,15 +65,12 @@ An \code{ocular} object containing the query, retrieved scenes,
 \description{
 Retrieves Landsat or Sentinel-2 scenes through the Microsoft Planetary
 Computer SpatioTemporal Asset Catalog (STAC) and returns an \code{ocular}
-object. The supplied point defines the centre of the analysis area. A
-multi-temporal spectral feature stack is prepared when field boundary
-delineation requires it.
+object. The supplied point defines the centre of the analysis area. Field
+boundary delineation uses spectral features from one or more periods.
 }
 \details{
-The \code{params} list is stored on the returned object and used by
-subsequent processing and output functions. Named arguments supplied to
-those functions override the stored setting for that call only; they do not
-modify \code{rs$params}.
+Settings supplied through \code{params} are stored on the returned object.
+See \code{\link{rs_params}} for changing them in later calls.
 }
 \section{Supported indices}{
 

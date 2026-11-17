@@ -79,6 +79,26 @@ test_that("FTW source labels redact credentials and full paths", {
   expect_false(grepl("user|password|token|secret", message))
 })
 
+test_that("FTW error redaction removes the truncated DuckDB query excerpt", {
+  source <- "gs://svc-user:SECRETKEY@my-bucket/private/fields.parquet"
+  duckdb_message <- paste0(
+    "Missing Extension Error: File ", source,
+    " requires the extension httpfs to be loaded\n\n",
+    "LINE 2:        FROM read_parquet('gs://svc-user:SECRETKEY@my-bucket/private...\n",
+    "                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n",
+    "Context: rapi_prepare")
+  message <- ocular:::.redactFtwCondition(simpleError(duckdb_message), source)
+  expect_false(grepl("svc-user|SECRETKEY|my-bucket|LINE 2", message))
+  expect_identical(
+    message,
+    paste0("Missing Extension Error: File gs://.../fields.parquet requires ",
+           "the extension httpfs to be loaded\n\nContext: rapi_prepare"))
+
+  plain <- "IO Error: No files found that match the pattern \"x.parquet\""
+  expect_identical(
+    ocular:::.redactFtwCondition(simpleError(plain), "x.parquet"), plain)
+})
+
 test_that("add_ftw_prior validates its inputs", {
   expect_error(add_ftw_prior(list(), source = "x.parquet"), "ocular object")
   rs <- .make_test_rs()
@@ -101,7 +121,7 @@ test_that("add_ftw_prior uses field boundary terminology in no-match messages", 
     .package = "ocular")
   expect_message(
     unchanged <- add_ftw_prior(rs, source = "fields.parquet"),
-    "no field boundaries intersect the analysis area; ocular object unchanged",
+    "no field boundaries intersect the analysis area. The ocular object is unchanged",
     fixed = TRUE)
   expect_identical(unchanged, rs)
 
@@ -113,9 +133,90 @@ test_that("add_ftw_prior uses field boundary terminology in no-match messages", 
     .package = "ocular")
   expect_message(
     unchanged <- add_ftw_prior(rs, source = "fields.parquet"),
-    "no field boundary contains the supplied point; ocular object unchanged",
+    "no field boundary contains the supplied point. The ocular object is unchanged",
     fixed = TRUE)
   expect_identical(unchanged, rs)
+})
+
+test_that("add_ftw_prior keys the cache of a local file on the file itself", {
+  rs <- .make_test_rs()
+  fs <- rs$internals$feature_stack
+  field <- sf::st_as_sf(terra::project(
+    terra::as.polygons(terra::ext(fs), crs = terra::crs(fs)), "EPSG:4326"))
+  dir <- .test_artifact_dir("ftw-local-key")
+  cache <- file.path(dir, "cache")
+  for( sub in c("a", "b", "cache") ){
+    dir.create(file.path(dir, sub))
+  }
+  writeLines("2018", file.path(dir, "a", "fields.parquet"))
+  writeLines("2023", file.path(dir, "b", "fields.parquet"))
+
+  testthat::local_mocked_bindings(
+    .ftwCacheDir = function(create = TRUE) cache,
+    .ftwQuery = function(bbox_wgs84, source, ...){
+      out <- field
+      out$source_year <- as.integer(readLines(source))
+      out
+    },
+    .package = "ocular")
+  year_of <- function(source){
+    suppressMessages(add_ftw_prior(rs, source = source))$geom$ftw_prior$source_year
+  }
+
+  old <- getwd()
+  tryCatch({
+    setwd(file.path(dir, "a"))
+    expect_identical(year_of("fields.parquet"), 2018L)
+    setwd(file.path(dir, "b"))
+    expect_identical(year_of("fields.parquet"), 2023L)
+  }, finally = setwd(old))
+
+  path <- file.path(dir, "a", "fields.parquet")
+  expect_identical(year_of(path), 2018L)
+  writeLines("2024", path)
+  Sys.setFileTime(path, Sys.time() + 60)
+  expect_identical(year_of(path), 2024L)
+})
+
+test_that("FTW cache key of a URL or a glob is the source string", {
+  qb <- c(xmin = 117.80, ymin = -32.01, xmax = 117.82, ymax = -31.99)
+  for( source in c("https://example.test/fields.parquet",
+                   "s3://bucket/fields/*.parquet",
+                   "no-such-dir/*.parquet") ){
+    expect_identical(ocular:::.ftwCacheKey(ocular:::.ftwSourceId(source), qb),
+                     ocular:::.ftwCacheKey(source, qb))
+  }
+})
+
+test_that("add_ftw_prior does not cache a result without any source_year", {
+  rs <- .make_test_rs()
+  fs <- rs$internals$feature_stack
+  field <- sf::st_as_sf(terra::project(
+    terra::as.polygons(terra::ext(fs), crs = terra::crs(fs)), "EPSG:4326"))
+  cache <- .test_artifact_dir("ftw-no-year")
+  year <- NA_integer_
+
+  testthat::local_mocked_bindings(
+    .ftwCacheDir = function(create = TRUE) cache,
+    .ftwQuery = function(...){
+      out <- field
+      out$source_year <- year
+      out
+    },
+    .package = "ocular")
+  source <- "/data/fields.parquet"
+
+  first <- suppressMessages(add_ftw_prior(rs, source = source))
+  expect_null(first$geom$ftw_prior$source_year)
+  expect_length(ocular:::.ftwCacheList(cache), 0L)
+  year <- 2020L
+  second <- suppressMessages(add_ftw_prior(rs, source = source))
+  expect_identical(second$geom$ftw_prior$source_year, 2020L)
+  expect_length(ocular:::.ftwCacheList(cache), 1L)
+
+  year <- NA_integer_
+  suppressMessages(add_ftw_prior(rs, source = source, datetime_col = NULL))
+  expect_length(ocular:::.ftwCacheList(cache), 2L)
 })
 
 test_that("FTW query never installs DuckDB extensions", {

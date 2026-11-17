@@ -1,5 +1,5 @@
 
-## Retrieval metadata: Sentinel-2 spectral indices
+# Sentinel-2 spectral indices
 s2_index_list <- list(
   NDVI = list(
     assets = c("B08", "B04"),
@@ -157,7 +157,7 @@ s2_index_list <- list(
     res = 20 )
 )
 
-## Landsat spectral indices list
+# Landsat spectral indices
 landsat_index_list <- list(
   NDVI = list(
     assets = c("nir08", "red"),
@@ -281,83 +281,77 @@ landsat_index_list <- list(
 
 )
 
-## ---------------------------------------------------------------------------
-## MCD43A4 (modis-43A4-061) -- daily 500 m NBAR (BRDF-normalised reflectance).
-## Every index is computed from NBAR reflectance bands. Band map: Band1 red,
-## Band2 NIR, Band3 blue, Band7 SWIR2 (used as MIR for NBR). Band order per
-## index mirrors landsat_index_list so the fusion functions can pair fine and
-## coarse bands positionally. res = 500.
-## Confirm the asset names ("Nadir_Reflectance_BandN") against the live
-## modis-43A4-061 collection before production use.
-## ---------------------------------------------------------------------------
+# MCD43A4 daily reflectance at 500 m, normalised for viewing geometry.
+# Bands 1, 2, 3 and 7 are red, NIR, blue and SWIR2. NBR uses SWIR2 as MIR.
+# Band order matches Landsat so fusion can pair bands by position.
 mcd43a4_index_list <- list(
   NDVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
+    res = 500 ),
 
   EVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1", "Nadir_Reflectance_Band3"),
-    fun    = function(r) 2.5 * (r[[1L]] - r[[2L]]) / (r[[1L]] + 6 * r[[2L]] - 7.5 * r[[3L]] + 1),
-    res    = 500 ),
+    fun = function(r) 2.5 * (r[[1L]] - r[[2L]]) / (r[[1L]] + 6 * r[[2L]] - 7.5 * r[[3L]] + 1),
+    res = 500 ),
 
   DVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) r[[1L]] - r[[2L]],
-    res    = 500 ),
+    fun = function(r) r[[1L]] - r[[2L]],
+    res = 500 ),
 
   kNDVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) tanh( ((r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]))^2 ),
-    res    = 500 ),
+    fun = function(r) tanh( ((r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]))^2 ),
+    res = 500 ),
 
   BNDVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band3"),
-    fun    = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
+    res = 500 ),
 
   NIRv = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) ((r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]])) * r[[1L]],
-    res    = 500 ),
+    fun = function(r) ((r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]])) * r[[1L]],
+    res = 500 ),
 
   SAVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]] + 0.5) * 1.5,
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]] + 0.5) * 1.5,
+    res = 500 ),
 
   MSAVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) (2 * r[[1L]] + 1 - sqrt((2 * r[[1L]] + 1)^2 - 8 * (r[[1L]] - r[[2L]]))) / 2,
-    res    = 500 ),
+    fun = function(r) (2 * r[[1L]] + 1 - sqrt((2 * r[[1L]] + 1)^2 - 8 * (r[[1L]] - r[[2L]]))) / 2,
+    res = 500 ),
 
   SR = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) r[[1L]] / r[[2L]],
-    res    = 500 ),
+    fun = function(r) r[[1L]] / r[[2L]],
+    res = 500 ),
 
   EVI2 = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) 2.5 * (r[[1L]] - r[[2L]]) / (r[[1L]] + 2.4 * r[[2L]] + 1),
-    res    = 500 ),
+    fun = function(r) 2.5 * (r[[1L]] - r[[2L]]) / (r[[1L]] + 2.4 * r[[2L]] + 1),
+    res = 500 ),
 
   OSAVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1"),
-    fun    = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]] + 0.16),
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]] + 0.16),
+    res = 500 ),
 
   ARVI = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band1", "Nadir_Reflectance_Band3"),
-    fun    = function(r) (r[[1L]] - (2 * r[[2L]] - r[[3L]])) / (r[[1L]] + (2 * r[[2L]] - r[[3L]])),
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - (2 * r[[2L]] - r[[3L]])) / (r[[1L]] + (2 * r[[2L]] - r[[3L]])),
+    res = 500 ),
 
   NBR = list(
     assets = c("Nadir_Reflectance_Band2", "Nadir_Reflectance_Band7"),
-    fun    = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
-    res    = 500 ),
+    fun = function(r) (r[[1L]] - r[[2L]]) / (r[[1L]] + r[[2L]]),
+    res = 500 ),
 
   BAI = list(
     assets = c("Nadir_Reflectance_Band1", "Nadir_Reflectance_Band2"),
-    fun    = function(r) 1 / ((0.1 - r[[1L]])^2 + (0.06 - r[[2L]])^2),
-    res    = 500 )
+    fun = function(r) 1 / ((0.1 - r[[1L]])^2 + (0.06 - r[[2L]])^2),
+    res = 500 )
 )

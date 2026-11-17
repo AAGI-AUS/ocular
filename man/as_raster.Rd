@@ -20,9 +20,8 @@ as_raster(
 \code{"median"} (the default), \code{"mean"}, \code{"max"},
 \code{"min"}, or \code{"sum"}.}
 
-\item{params}{Optional complete or partial list of settings accepted by
-\code{rs_params()}. These settings override \code{rs$params} for this
-call; \code{NULL} retains the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{multiple_areas}{Override for the corresponding \code{rs_params()}
 setting, controlling whether separate delineated areas are returned.}
@@ -39,18 +38,14 @@ for this call.}
 \value{
 A \code{SpatRaster}. With multiple delineated areas, layers are named
   \code{area_1}, \code{area_2}, and so on, followed by \code{union}. If
-  delineation ran but found no area, values are all \code{NA}; an
+  delineation ran but found no area, values are all \code{NA}. An
   undelineated object returns a composite for the full analysis area.
 }
 \description{
 Combines the requested index values across retrieved scenes for each pixel.
-Before field boundary delineation, the result covers the full analysis area;
-after delineation, it is masked to the delineated area or areas. Supply
+Before field boundary delineation, the result covers the full analysis area.
+After delineation, it is masked to the delineated area or areas. Supply
 \code{mask} to use an sf/sfc geometry directly.
-}
-\details{
-Parameters stored in \code{rs$params} are used by default. Named arguments
-supplied here override the corresponding setting for this call only.
 }
 \seealso{
 \code{\link{as_time_series}}, \code{\link{get_rs}}

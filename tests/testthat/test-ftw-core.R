@@ -75,6 +75,36 @@ test_that("FTW selection keeps only the field containing the seed", {
   expect_null(ocular:::.selectFtwField(fields, rs))
 })
 
+test_that("FTW selection skips a polygon that cannot be tested unless it may hold the seed", {
+  square <- function(x0, d){
+    sf::st_polygon(list(rbind(c(x0 - d, -32 - d), c(x0 + d, -32 - d), c(x0 + d, -32 + d),
+                              c(x0 - d, -32 + d), c(x0 - d, -32 - d))))
+  }
+  ## A repeated vertex: valid on a flat map, rejected on the sphere.
+  repeated <- function(x0, d){
+    sf::st_polygon(list(rbind(c(x0 - d, -32 - d), c(x0 + d, -32 - d), c(x0 + d, -32 - d),
+                              c(x0 + d, -32 + d), c(x0 - d, -32 + d), c(x0 - d, -32 - d))))
+  }
+  rs <- .make_test_rs()
+  rs$spec$point <- list(longitude = 117.8, latitude = -32)
+  seed <- sf::st_sfc(sf::st_point(c(117.8, -32)), crs = 4326)
+
+  ## The seed field with an untestable neighbour: the seed field is selected.
+  fields <- sf::st_sf(id = 1:2,
+                      geometry = sf::st_sfc(square(117.8, 0.001), repeated(117.804, 0.001),
+                                            crs = 4326))
+  expect_error(sf::st_intersects(seed, fields))
+  expect_identical(ocular:::.selectFtwField(fields, rs)$id, 1L)
+
+  ## An untestable seed field inside a larger field: the smallest field
+  ## containing the seed cannot be found, so nothing is selected.
+  nested <- sf::st_sf(id = 1:2,
+                      geometry = sf::st_sfc(repeated(117.8, 0.001), square(117.8, 0.003),
+                                            crs = 4326))
+  expect_error(sf::st_intersects(seed, nested))
+  expect_null(ocular:::.selectFtwField(nested, rs))
+})
+
 test_that("add_ftw_prior selects the seed field and recalibrates", {
   rs <- .make_test_rs()
   expect_identical(rs$internals$calibration$source, "self")

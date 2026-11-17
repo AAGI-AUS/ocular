@@ -9,7 +9,7 @@ clear_rs_cache(cache_dir = NULL)
 \arguments{
 \item{cache_dir}{Cache directory to clear. \code{NULL} selects the versioned
 per-user cache. A custom directory must previously have been initialised
-by a cache-enabled \code{batch_rs()} call; unmarked custom directories and
+by a cache-enabled \code{batch_rs()} call. Unmarked custom directories and
 broad paths are refused.}
 }
 \value{

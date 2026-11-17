@@ -25,6 +25,7 @@ rs_params(
   split_gate = 2L,
   split_linear = FALSE,
   strictness = "balanced",
+  s2_processing = "highest_baseline",
   ...
 )
 }
@@ -33,7 +34,7 @@ rs_params(
 
 \item{search_windows, search_index, min_windows_alive}{See parameter reference.}
 
-\item{search_start_date, search_end_date}{See parameter reference.}
+\item{search_start_date, search_end_date, s2_processing}{See parameter reference.}
 
 \item{perimeter_margins, trace_iter}{See parameter reference.}
 
@@ -48,7 +49,7 @@ experimental control rather than a primary tuning parameter.}
 
 \item{strictness}{See parameter reference.}
 
-\item{...}{Catches unknown named arguments; errors if any are passed.}
+\item{...}{Unknown named arguments are rejected.}
 }
 \value{
 A complete named list of all workflow parameters.
@@ -56,14 +57,18 @@ A complete named list of all workflow parameters.
 \description{
 Returns a complete named list of parameters for retrieval and delineation.
 \code{get_rs(..., params = ...)} stores this list on the \code{ocular}
-object and downstream stages use it by default. Most applications can begin
-with the defaults; individual settings can then be changed for retrieval,
-initial area growth, boundary refinement, or output requirements.
+object for use in later processing and output calls.
 }
 \details{
 A named argument supplied to a stage call (for example,
 \code{trace_perimeter(rs, multiple_areas = TRUE)}) overrides the stored
 setting for that call only and does not mutate \code{rs$params}.
+
+The list records which arguments were explicitly supplied, including values
+equal to their defaults. When passed to a later stage, those settings and any
+values changed from their defaults override the stored or calibrated values.
+Defaults filled in by \code{rs_params()} leave those values in place. In a
+plain named list, every named setting is treated as explicitly supplied.
 }
 \section{Parameter reference}{
 
@@ -79,14 +84,14 @@ setting for that call only and does not mutate \code{rs$params}.
     A pixel passes the threshold test only if its VI is within
     \code{[area_threshold[1], area_threshold[2]]} (inclusive). The bounds
     are used by \code{segment_area()} when learning the seed signature and
-    when checking the completed fill for vegetation. Default
-    \code{c(0.2, 0.7)}.}
-  \item{\code{area_sensitivity}}{Maximum distance from the seed
-    signature for a pixel to be considered self-consistent.
-    Default \eqn{0.20}.}
-  \item{\code{local_alive_density}}{Minimum density of predicate-
-    passing 8-neighbours required to admit a candidate during fill.
-    Default \eqn{0.20}.}
+    when testing each pixel during the fill, which a pixel passes if its VI
+    is within the bounds in any window. Calibration also uses them to set
+    its dispersion limit. Default \code{c(0.2, 0.7)}.}
+  \item{\code{area_sensitivity}}{Maximum permitted difference from the
+    seed signature. Default \eqn{0.20}.}
+  \item{\code{local_alive_density}}{Minimum proportion of a candidate
+    cell's visited 8-neighbours that must pass the spectral tests before
+    the cell is added. Default \eqn{0.20}.}
   \item{\code{time_independent_windows}}{When \code{TRUE} (default),
     each search window runs its own fill and outputs are unioned.
     When \code{FALSE}, a single joint fill spans all windows.}
@@ -98,17 +103,29 @@ setting for that call only and does not mutate \code{rs$params}.
     \code{index_name} used for output.}
   \item{\code{min_windows_alive}}{In joint mode, minimum windows in
     which a pixel must match the signature. Default \eqn{1L}.}
-  \item{\code{strictness}}{Sample-free ordinal selector for fixed
-    robustness multiples \code{k} applied to measured per-window
-    dispersion: \code{"loose"}, \code{"balanced"} (default), or
-    \code{"tight"}, mapping respectively to 3.0, 2.2, and 1.5.
-    Spectral-only by design. These engineering defaults require external
-    scientific validation.}
+  \item{\code{strictness}}{Controls calibrated spectral matching
+    tolerance. \code{"loose"}, \code{"balanced"} (default), and
+    \code{"tight"} use multipliers of 3.0, 2.2, and 1.5 on each window's
+    measured dispersion. Calibration uses spectral values only. These
+    engineering defaults require external scientific validation.}
   \item{\code{search_start_date}, \code{search_end_date}}{Optional
     restricted date range for detection (output uses the full
     range). Must lie within \code{[start_date, end_date]} and span
-    at least 2 days; \code{get_rs()} errors otherwise. Both default to
+    at least 2 days. \code{get_rs()} rejects other ranges. Both default to
     \code{NULL}.}
+  \item{\code{s2_processing}}{Sentinel-2 processing selected when the same
+    acquisition and tile are available more than once. Acquisition times are
+    compared in UTC without rounding fractional seconds. Default
+    \code{"highest_baseline"} selects the highest available processing
+    baseline. \code{"lowest_baseline"} selects the lowest, which need not be
+    the original processing. Equal baselines use the later or earlier
+    generation time respectively, then the first item ID in lexical order.
+    Missing generation times follow known times. An exact tie keeps the
+    first queried item. Items lacking acquisition identity remain ungrouped.
+    A group with an unreadable baseline is retained without selection. Both
+    fallbacks are reported in the retrieval warning. The choice does not
+    establish which version is more accurate. This setting acts only at
+    retrieval.}
   \item{\code{perimeter_margins}}{Default cleanup low/high (and
     optional bias) thresholds for boundary cleanup. Used by
     \code{trace_perimeter()} when no inline \code{perimeter_margins}
@@ -120,7 +137,7 @@ setting for that call only and does not mutate \code{rs$params}.
     only the centre-most rank-1 area.}
   \item{\code{area_separation_strict}}{Advanced, experimental
     connectivity selector. \code{FALSE} (default) uses 8-neighbour
-    connectivity; \code{TRUE} uses 4-neighbour connectivity;
+    connectivity. \code{TRUE} uses 4-neighbour connectivity.
     \code{c(FALSE, n)} re-evaluates the top \code{n} centre-most areas
     under 4-neighbour connectivity.}
   \item{\code{merge_separate_areas}}{When \code{TRUE}, attempts to
@@ -128,7 +145,7 @@ setting for that call only and does not mutate \code{rs$params}.
     area trim. Default \code{FALSE}.}
   \item{\code{interior_sensitivity}}{Maximum permitted difference
     between a line-of-sight alive-pixel median and the seed signature during
-    within-field segmentation. Default \eqn{0.10}; \code{NULL} disables
+    within-field segmentation. Default \eqn{0.10}. \code{NULL} disables
     within-field segmentation.}
   \item{\code{interior_threshold}}{Lower and upper vegetation index bounds
     for the per-cell predicate used by \code{segment_interior()}.
@@ -143,7 +160,7 @@ setting for that call only and does not mutate \code{rs$params}.
     greater than or equal to this value. Finite alive cells whose scalar
     values differ by less than or equal to this value can form the protected
     8-connected component containing the supplied point. Exact equality
-    therefore satisfies both conservative comparisons. Default \eqn{0.05};
+    therefore satisfies both conservative comparisons. Default \eqn{0.05}.
     \code{NULL} disables splitting.}
   \item{\code{split_gate}}{Number of consecutive measurable divergent
     steps required to commit a split. A measurable

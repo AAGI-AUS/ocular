@@ -11,44 +11,21 @@ vignette: >
 ---
 
 ```{r, include = FALSE}
-knitr::opts_chunk$set(
-  collapse = TRUE,
-  comment = "#>",
-  eval = TRUE
-)
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+Start with `boundary_delineation()` for the predefined workflow. This guide
+shows how to compare settings, inspect individual stages, and reuse a workflow
+across sites. The examples illustrate software use, not recommended settings
+or validated field boundaries. Remote examples are not run during the build.
+
+```{r load-ocular}
 library(ocular)
 ```
 
-`boundary_delineation()` runs the default field boundary delineation workflow.
-The four component functions can also be called directly when their order,
-frequency, or settings need to be inspected or changed. A chosen sequence can
-then be captured with `build_pipeline()` and applied to one or more retrieved
-`ocular` objects.
+## Compare workflows from the same input
 
-Examples that retrieve satellite data are not evaluated during the vignette
-build. Their locations, dates, and low-level parameter values are illustrative
-rather than recommended settings.
-
-## The four delineation stages
-
-| Function | Role |
-|---|---|
-| `segment_area()` | Grows an initial candidate area from the supplied point using a constrained breadth-first search flood fill over a multi-temporal spectral feature stack. |
-| `trace_perimeter()` | Refines an existing candidate boundary by removing or reviving perimeter cells according to local perimeter occupancy. When called before `segment_area()`, it stages one cleanup pass for the initial candidate. |
-| `segment_interior()` | Reclassifies interior cells whose values for vegetative indices (VI) fall outside user-specified bounds or, during a divergent profile, differ from the seed signature. It does not alter perimeter cells. |
-| `split_area()` | Looks for consecutive measurable line-of-sight profiles that diverge from the seed signature and rejects a provisional axis cut if it would remove any cell in the protected point-connected matching component. |
-
-`boundary_delineation()` does more than call each stage once. It runs a fixed
-sequence with repeated splitting and perimeter refinement;
-`cleanup_boundary` controls the number of additional split-and-cleanup pairs.
-Use `boundary_delineation()` unless the analysis requires a deliberately
-different sequence.
-
-## Running stages directly
-
-First retrieve the scenes. The output index and the index used for delineation
-can be different; this example requests NDVI output and otherwise retains the
-default delineation index.
+Retrieve scenes once and keep the resulting `rs` object:
 
 ```{r retrieve-for-stages, eval=FALSE}
 rs <- get_rs(
@@ -60,152 +37,121 @@ rs <- get_rs(
   source = "landsat-8",
   x_metres = 1000
 )
+
+field <- boundary_delineation(rs)
+terra::plot(as_raster(field))
 ```
 
-A direct chain makes each stage and its call-level settings explicit:
+For a new comparison, start each run from `rs`. Here `"tight"` illustrates a
+change to the calibrated matching tolerance; it is not a recommendation for
+this site.
+
+```{r compare-settings, eval=FALSE}
+field_tight <- boundary_delineation(rs, strictness = "tight")
+terra::plot(as_raster(field_tight))
+```
+
+Passing `field` instead reruns the workflow on its current mask. Area filling
+searches within that mask using existing spectral data and fresh stage state;
+later refinement stages can remove or revive cells. An empty input mask stays
+empty, so return to `rs` to try another delineation.
+
+```{r refine-current-mask, eval=FALSE}
+field_refined <- boundary_delineation(field)
+```
+
+## Inspect individual stages
+
+| Function | Role |
+|---|---|
+| `segment_area()` | Grows a candidate area using spectral similarity across dates. |
+| `trace_perimeter()` | Removes or revives perimeter cells. Without a mask, schedules cleanup after the initial fill. |
+| `segment_interior()` | Revises cells using spectral bounds and agreement with the seed signature. |
+| `split_area()` | Separates adjoining areas while protecting the matching component connected to the supplied point. |
+
+Run the stages directly when you want to inspect an intermediate result:
 
 ```{r direct-stage-chain, eval=FALSE}
-candidate <- rs |>
-  segment_area(
-    area_sensitivity = 0.2,
-    area_threshold = c(0.4, 1),
-    local_alive_density = 0.25,
-    search_windows = c(2L, 3L)
-  )
-
-candidate_raster <- as_raster(candidate)
-
+candidate <- segment_area(rs)
 field_manual <- candidate |>
-  segment_interior(interior_sensitivity = 0.1) |>
-  split_area(split_sensitivity = 0.05, split_gate = 2L) |>
-  trace_perimeter(
-    perimeter_margins = c(0.3, 0.9),
-    trace_iter = 20L
-  )
+  segment_interior() |>
+  split_area() |>
+  trace_perimeter()
+
+terra::plot(as_raster(candidate))
+terra::plot(as_raster(field_manual))
 ```
 
-`candidate_raster` is the requested VI composite masked to the current
-candidate area; it is not a binary-mask export. Comparing output after each
-stage can help identify which part of a custom sequence needs adjustment.
+This manual chain differs from `boundary_delineation()`, which includes
+repeated splitting and perimeter refinement. Its `cleanup_boundary` setting
+controls additional split-and-cleanup pairs. See `?boundary_delineation` for
+the sequence.
 
-`local_alive_density` is an admission condition in the initial flood fill: it
-sets the required proportion of predicate-passing visited neighbours. It is
-not a general thin-feature trimming control. `interior_sensitivity = NULL` or
-`split_sensitivity = NULL` explicitly disables the corresponding stage.
+### Change settings deliberately
 
-## Stored and call-level parameters
+Settings supplied to `get_rs()` are stored on its object. Later calls can
+override them without changing that stored list. In `rs_params()`, only the
+settings you supply explicitly override stored or calibrated values; filled-in
+defaults leave those values in place. Every entry in a plain named list is
+explicit.
 
-Parameters supplied to `get_rs()` are stored on the returned object. A
-possibly partial `params` list supplied to a later stage overlays those stored
-settings for that call. Named stage arguments take precedence and do not
-mutate `rs$params`.
+Leaving `area_sensitivity` unspecified allows calibrated signatures and
+per-window tolerances where support is adequate. Explicitly supplying it,
+even as `area_sensitivity = 0.2`, uses a scalar tolerance instead. A calibrated
+fill retains eligible calibrated signatures for later refinement when learned
+signatures are missing. See `?rs_params` and `?segment_area` for the full rules.
+
+For example, collect perimeter settings in a list for reuse:
 
 ```{r pipeline-settings}
 pipeline_params <- rs_params(
-  area_sensitivity = 0.2,
-  area_threshold = c(0.4, 1),
-  local_alive_density = 0.25,
-  search_windows = c(2L, 3L),
   perimeter_margins = c(0.5, 0.9),
   trace_iter = 20L
 )
-
-pipeline_params[c(
-  "area_sensitivity",
-  "search_windows",
-  "perimeter_margins"
-)]
 ```
 
-Calibration may provide per-window signatures and matching tolerances for the
-initial area search. Without an attached field boundary prior, calibration uses
-a complete seed-centred square and expands it until its precision condition is
-met or the available feature grid limits further expansion. Explicit user
-settings take precedence. `strictness` selects the robustness multiple applied
-to measured per-window dispersion; its current engineering defaults require
-external scientific validation.
+These illustrative settings leave calibrated area matching available. Low-level
+controls and calibration defaults need validation for the intended use. Prefer
+a small, explicit change when comparing settings; selecting particular
+`search_windows` also requires those windows to exist in each input.
 
-## Preserving multiple areas
+## Reuse a processing chain
 
-With `multiple_areas = FALSE`, output is limited to the centre-most connected
-area (rank 1). Set it to `TRUE` when disconnected areas produced by the
-seed-based search need to be retained separately.
-
-```{r multiple-areas, eval=FALSE}
-multi_params <- rs_params(multiple_areas = TRUE)
-
-field_multi <- get_rs(
-  longitude = -101.70862,
-  latitude = 35.90839,
-  start_date = "2010-04-25",
-  end_date = "2010-10-15",
-  x_metres = 1000,
-  params = multi_params
-) |>
-  boundary_delineation()
-
-multi_raster <- as_raster(field_multi)
-multi_series <- as_time_series(field_multi)
-```
-
-When more than one disconnected area remains, raster layers are named
-`area_1`, `area_2`, and so on, followed by `union`; the time series uses the
-same per-area columns plus `union`. With one retained area, the ordinary
-single-area output schema is used. These labels describe connected output
-areas; they do not establish that each area is an independently validated
-field.
-
-## Capturing a reusable pipeline
-
-`build_pipeline()` captures a supported stage chain that is applied to an
-existing `ocular` object. It does not capture the initial `get_rs()` call:
-retrieve an object first, then supply it when the pipeline is called. Omit that
-initial object from the captured native pipe expression.
+`build_pipeline()` captures processing after retrieval. Omit the initial object
+from the captured native pipe, then pass a retrieved object to the result:
 
 ```{r construct-pipeline}
-raster_pipeline <- build_pipeline(
-  segment_area() |>
-    trace_perimeter() |>
-    as_raster(),
-  params = pipeline_params
-)
-
 time_series_pipeline <- build_pipeline(
   boundary_delineation() |>
     as_time_series(),
   params = pipeline_params
 )
-
-class(raster_pipeline)
 ```
-
-The pipeline can then be applied to a retrieved object:
 
 ```{r run-pipeline, eval=FALSE}
-vi_raster <- raster_pipeline(rs)
+vi_series <- time_series_pipeline(rs)
+head(vi_series)
 ```
 
-Arguments that can be evaluated when the pipeline is constructed are stored
-with it. A `params` list supplied when the pipeline is called replaces the
-captured list for that run; stage arguments written directly in the captured
-expression continue to take precedence.
+A `params` list supplied at run time replaces the captured list for that run.
+Omitted settings then come from the input object and normal stage resolution.
+Arguments written directly in a captured stage still take precedence.
 
 ```{r run-pipeline-override, eval=FALSE}
-vi_raster <- raster_pipeline(
+vi_series <- time_series_pipeline(
   rs,
   params = list(perimeter_margins = c(0.3, 0.7))
 )
 ```
 
-Supported captured stages are the four delineation functions,
-`boundary_delineation()`, `add_modis()`, `as_raster()`, and
-`as_time_series()`. Retrieval, `add_ftw_prior()`, and
-`validate_data_fusion()` are separate operations.
+Supported stages include the four delineation functions,
+`boundary_delineation()`, `add_modis()` and the output functions. Retrieval,
+`add_ftw_prior()` and `validate_data_fusion()` remain separate operations.
+See `?build_pipeline` for argument capture and alternative input notation.
 
-## Applying a workflow across sites
+## Process multiple sites
 
-`batch_rs()` accepts one row for each site and date range. Required columns are
-`id`, `longitude`, `latitude`, `start_date`, and `end_date`.
+Give `batch_rs()` one row per site and date range, with the five columns below:
 
 ```{r batch-input}
 sites <- data.frame(
@@ -215,12 +161,11 @@ sites <- data.frame(
   start_date = "2016-05-18",
   end_date = "2016-09-21"
 )
-
-sites
 ```
 
-Without a custom pipeline, each row is retrieved, delineated with the default
-workflow, and returned as a long time series.
+The default batch retrieves each site, runs `boundary_delineation()`, and
+combines its time series into `id`, `index`, `source`, `date` and `value` columns.
+Always inspect the per-input outcomes as well as the returned values:
 
 ```{r batch-default, eval=FALSE}
 series <- batch_rs(
@@ -230,38 +175,70 @@ series <- batch_rs(
   x_metres = 1000,
   max_cloud_cover = 50
 )
+
+head(series)
+attr(series, "outcomes")
+attr(series, "failures")
 ```
 
-The result includes `id`, `index`, `source`, `date`, and `value`. A site that
-fails is absent from the rows and recorded in `attr(series, "failures")`.
-Retrieval is retried. After each uncached successful retrieval, the processing
-pipeline is run once.
+`outcomes` accounts for every input row as `success`, `empty`, `failure` or
+`interrupted`, with returned date counts, retrieval attempts and cache use.
+An empty success contributes no time-series rows and is not a failure.
+`failures` supplies reasons for failed or interrupted sites.
 
-The batch interface currently exposes the scene-level `max_cloud_cover`
-filter, but not the per-pixel `scl_classes` setting. Where per-pixel masking is
-required, retrieve each site with `get_rs()` or prepare a separate controlled
-workflow rather than assuming that the batch call applies it.
+By default, a site has at most **three retrieval attempts**. Only classified
+temporary catalogue-query or transport errors are retried; no-scenes results,
+pipeline errors and asset-reading failures are final. On the final attempt,
+the default cloud-cover ceiling can rise from 50 to 80. Set `cloud_relax` equal
+to your requested ceiling to keep it fixed. `retries = Inf` allows unlimited
+transient retries and also keeps the requested ceiling. Interrupting a batch
+returns completed results and records unfinished sites. See `?batch_rs` for
+the complete retry rules.
 
-A custom batch pipeline must finish with a data frame containing `date` and
-`value`. Caching is disabled for a custom pipeline unless a
-`pipeline_cache_key` is supplied. Change that key whenever the pipeline or its
-captured values change; reusing a key can reuse an earlier cached result.
+The batch interface accepts `max_cloud_cover`, but not `scl_classes`. For
+per-pixel masking, retrieve sites individually with `get_rs()`.
+
+### Reuse results or supply a custom pipeline
+
+Completed results are cached by default. Repeating a matching request reuses
+them; `cache = FALSE` retrieves and processes them again. Custom pipelines are
+cached only when you supply `pipeline_cache_key`. Change the key whenever the
+pipeline or its captured values change.
 
 ```{r batch-custom, eval=FALSE}
 series <- batch_rs(
   sites,
   pipeline = time_series_pipeline,
-  pipeline_cache_key = "delineation-series-v1",
+  pipeline_cache_key = "delineation-series-v2",
   index_name = "NDVI",
   source = "landsat-8",
   x_metres = 1000
 )
 ```
 
-## Where to continue
+A custom pipeline must return `date` and one numeric `value` column. Batch
+output retains these and the site/index/source labels; extra columns, including
+fusion diagnostics, are discarded. The default batch maps a multi-area `union`
+to `value`; a custom pipeline must make that choice itself.
 
-- `vignette("ocular-experimental-features")` covers Landsat-MODIS data fusion
-  and compatible field boundary priors.
-- `?rs_params` lists all implemented controls.
-- `?build_pipeline` and `?batch_rs` document the reusable and multi-site
-  interfaces.
+## Retain disconnected areas
+
+To keep several connected areas produced by the search, set
+`multiple_areas = TRUE`. Otherwise output is limited to the centre-most area.
+Here the choice is supplied to each call because it was not stored at retrieval.
+
+```{r multiple-areas, eval=FALSE}
+field_multi <- boundary_delineation(rs, multiple_areas = TRUE)
+multi_raster <- as_raster(field_multi, multiple_areas = TRUE)
+multi_series <- as_time_series(field_multi, multiple_areas = TRUE)
+
+names(multi_raster)
+head(multi_series)
+```
+
+When several areas remain, outputs use `area_1`, `area_2`, and so on, plus
+`union`. With only one area, the ordinary single-area schema is used. These
+labels identify connected output areas, not independently validated fields.
+
+For field boundary priors and Landsat-MODIS fusion, continue to
+[Experimental features](https://github.com/AAGI-AUS/ocular/blob/main/vignettes/ocular-experimental-features.Rmd).

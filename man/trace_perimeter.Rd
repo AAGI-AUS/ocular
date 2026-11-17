@@ -20,20 +20,19 @@ standalone retrieval form.}
 \item{perimeter_margins}{Lower and upper perimeter-occupancy thresholds, with
 an optional third value controlling which decision includes equality. In
 piped form, \code{NULL} uses the effective
-\code{params$perimeter_margins}; a \code{SpatRaster} call requires a value.}
+\code{params$perimeter_margins}. A \code{SpatRaster} call requires a value.}
 
 \item{trace_iter}{Maximum cleanup iterations. In piped form, an omitted value
-uses \code{params$trace_iter}; a \code{SpatRaster} call defaults to one
+uses \code{params$trace_iter}. A \code{SpatRaster} call defaults to one
 iteration.}
 
 \item{strictness}{Calibration control for \code{ocular}-object and longitude
 forms. It can update the calibration record used by subsequent area growth
 but does not directly alter perimeter cleanup. See \code{?rs_params}.}
 
-\item{params}{Optional, possibly partial \code{rs_params()} list for
-\code{ocular}-object or longitude forms. In piped form it overlays
-\code{rs$params}; in standalone retrieval form it is passed to
-\code{get_rs()}. It is not used for \code{SpatRaster} input.}
+\item{params}{Optional list of settings for \code{ocular} input or standalone
+retrieval. See \code{\link{rs_params}} for the settings and override rules.
+Not used for raster input.}
 
 \item{...}{Piped form accepts further named \code{rs_params()} overrides,
 including \code{multiple_areas}. \code{SpatRaster} form accepts only
@@ -41,18 +40,17 @@ including \code{multiple_areas}. \code{SpatRaster} form accepts only
 arguments to \code{get_rs()}.}
 }
 \value{
-A cleaned \code{SpatRaster} for raster input; otherwise an
-  \code{ocular} object with cleanup staged or applied.
+For raster input, a \code{SpatRaster} with the removals applied.
+  Otherwise, an \code{ocular} object with cleanup staged or applied.
 }
 \description{
 Walks the perimeter of a binary candidate mask and removes or revives
 boundary cells according to local perimeter occupancy. In an \code{ocular}
 pipeline, a call before \code{segment_area()} stages one cleanup for the
-subsequently filled mask; a call after segmentation refines the current mask
-immediately. With a \code{SpatRaster}, cleanup is applied directly.
-}
-\details{
-In pipeline form, parameters stored in \code{rs$params} provide the base
-settings. Named arguments supplied here override the corresponding setting
-for this call only.
+subsequently filled mask. A call after segmentation refines the current mask
+immediately. With a \code{SpatRaster}, only the removals of the cleanup are
+applied. An area stack with layers \code{area_1}, \code{area_2}, and so on,
+plus \code{union}, is cleaned area by area. The union of the cleaned
+area masks is applied to the original layers, preserving their values. Other
+raster inputs use the first layer's mask.
 }

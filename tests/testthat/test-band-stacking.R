@@ -58,7 +58,10 @@ test_that("STAC retrieval stacks named assets before masking and mosaicking", {
         list(href=paste0("fixture-",an))), names(values))
       items <- list(features=lapply(c("2024-06-01", "2024-06-17"),
         function(date) list(properties=list(datetime=paste0(date,"T00:00:00Z"),
-          platform="landsat-8"), assets=assets)))
+          platform="landsat-8", `s2:processing_baseline`="03.01",
+          `s2:mgrs_tile`="55HED", `sat:relative_orbit`=73L,
+          `s2:datastrip_id`="S2A_OPER_MSI_L2A_DS_TEST_S20240601T000000_N03.01"),
+          assets=assets)))
       original_rast <- terra::rast
       testthat::local_mocked_bindings(rast=function(x, ...) {
         if (missing(x)) return(original_rast(...))

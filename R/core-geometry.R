@@ -6,7 +6,7 @@
 #'
 #' Converts a ground distance to its east-west and north-south angular spans at
 #' a given latitude using the WGS-84 ellipsoid. The ellipsoid radii are
-#' Simpson-averaged across a latitude band of width \code{distance}; this band
+#' Simpson-averaged across a latitude band of width \code{distance}. This band
 #' controls the averaging interval, not the distance being converted.
 #'
 #' @param latitude Centre latitude in decimal degrees.
@@ -20,26 +20,30 @@
 #' @export
 metres_to_degrees <- function(latitude, distance = 1, pixel_size = 1){
 
-  if( !.isScalarNumber(latitude) || latitude <= -90 || latitude >= 90 )
+  if( !.isScalarNumber(latitude) || latitude <= -90 || latitude >= 90 ){
     stop("latitude must be a finite numeric strictly between -90 and 90.",
          call. = FALSE)
-  if( !.isScalarNumber(distance) || distance < 0 )
+  }
+  if( !.isScalarNumber(distance) || distance < 0 ){
     stop("distance must be a finite non-negative numeric.", call. = FALSE)
-  if( !.isScalarNumber(pixel_size) || pixel_size <= 0 )
+  }
+  if( !.isScalarNumber(pixel_size) || pixel_size <= 0 ){
     stop("pixel_size must be a finite positive numeric.", call. = FALSE)
+  }
 
-  a  <- 6378137.0
+  a <- 6378137.0
   e2 <- 0.00669437999014
   lat_c_rad <- latitude * pi / 180
-  m_c       <- a * (1 - e2) / (1 - e2 * sin(lat_c_rad)^2)^1.5
-  half_lat  <- (distance / 2) * 180 / (pi * m_c)
-  if( abs(latitude) + half_lat >= 90 )
+  m_c <- a * (1 - e2) / (1 - e2 * sin(lat_c_rad)^2)^1.5
+  half_lat <- (distance / 2) * 180 / (pi * m_c)
+  if( abs(latitude) + half_lat >= 90 ){
     stop("distance makes the averaging band cross a pole.", call. = FALSE)
-  lat_rad   <- (latitude + c(-half_lat, 0, half_lat)) * pi / 180
-  denom     <- 1 - e2 * sin(lat_rad)^2
-  n         <- a / sqrt(denom)
-  m         <- a * (1 - e2) / denom^1.5
-  w         <- c(1, 4, 1)
+  }
+  lat_rad <- (latitude + c(-half_lat, 0, half_lat)) * pi / 180
+  denom <- 1 - e2 * sin(lat_rad)^2
+  n <- a / sqrt(denom)
+  m <- a * (1 - e2) / denom^1.5
+  w <- c(1, 4, 1)
   return(c(x_degrees = pixel_size * 180 / (pi * sum(n * cos(lat_rad) * w) / 6),
            y_degrees = pixel_size * 180 / (pi * sum(m * w) / 6)))
 }
@@ -62,28 +66,38 @@ metres_to_degrees <- function(latitude, distance = 1, pixel_size = 1){
 #' @export
 point_to_bbox <- function(longitude, latitude, x_metres, y_metres){
 
-  if( !.isScalarNumber(longitude) || longitude < -180 || longitude > 180 )
+  if( !.isScalarNumber(longitude) || longitude < -180 || longitude > 180 ){
     stop("longitude must be a finite numeric in [-180, 180].", call. = FALSE)
-  if( !.isScalarNumber(latitude) || latitude <= -90 || latitude >= 90 )
+  }
+  if( !.isScalarNumber(latitude) || latitude <= -90 || latitude >= 90 ){
     stop("latitude must be a finite numeric strictly between -90 and 90.",
          call. = FALSE)
+  }
   if( !.isScalarNumber(x_metres) || !.isScalarNumber(y_metres) ||
-      x_metres <= 0 || y_metres <= 0 )
+      x_metres <= 0 || y_metres <= 0 ){
     stop("x_metres and y_metres must be finite positive numeric scalars.",
          call. = FALSE)
-  if( !sf::sf_use_s2() )
-    stop("point_to_bbox: requires sf::sf_use_s2(TRUE) so metre distances are ",
-         "interpreted geodesically; s2 is currently disabled (the buffer would ",
-         "be taken in degrees). Re-enable with sf::sf_use_s2(TRUE).",
+  }
+  if( !sf::sf_use_s2() ){
+    stop("point_to_bbox: metre distances require the s2 geometry engine. ",
+         "It is currently disabled. ",
+         "Enable it with sf::sf_use_s2(TRUE).",
          call. = FALSE)
+  }
   half_width_deg <- metres_to_degrees(latitude,
                                       distance = y_metres,
                                       pixel_size = x_metres / 2)[["x_degrees"]]
-  if( abs(longitude) + half_width_deg >= 180 )
-    stop("point_to_bbox: the requested area crosses the antimeridian; ",
-         "split it into two WGS-84 bounding boxes.", call. = FALSE)
-  point  <- sf::st_sfc(sf::st_point(c(longitude, latitude)), crs = sf::st_crs(4326))
+  if( abs(longitude) + half_width_deg >= 180 ){
+    stop("point_to_bbox: the requested area crosses the antimeridian. ",
+         "Split it into two WGS-84 bounding boxes.", call. = FALSE)
+  }
+  point <- sf::st_sfc(sf::st_point(c(longitude, latitude)), crs = sf::st_crs(4326))
   bbox_x <- sf::st_bbox(sf::st_buffer(point, dist = x_metres / 2))
+  # An s2 buffer can extend beyond the requested width or cover a pole.
+  if( bbox_x[["xmax"]] - bbox_x[["xmin"]] > 180 ){
+    stop("point_to_bbox: the requested area crosses the antimeridian. ",
+         "Split it into two WGS-84 bounding boxes.", call. = FALSE)
+  }
   bbox_y <- sf::st_bbox(sf::st_buffer(point, dist = y_metres / 2))
   return(sf::st_bbox(c(bbox_x[1], bbox_y[2], bbox_x[3], bbox_y[4]),
                      crs = sf::st_crs(4326)))

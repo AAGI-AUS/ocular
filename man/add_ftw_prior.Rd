@@ -26,7 +26,7 @@ the area of interest. Local files, HTTPS objects, and S3 keys are accepted.}
 \item{refresh}{If \code{TRUE}, bypass the cache and repeat the query.}
 
 \item{max_cache_entries}{Maximum number of entries retained in the on-disk
-cache. The default is 200; least-recently accessed entries are removed
+cache. The default is 200. Least-recently accessed entries are removed
 when the limit is exceeded.}
 
 \item{geometry_col, datetime_col}{Geometry and date column names. Their
@@ -44,7 +44,7 @@ Queries a user-supplied field boundary GeoParquet, then stores the polygon
 containing the supplied point and its representative \code{source_year} on
 the \code{ocular} object. The default column names follow the fiboa schema.
 Fields of The World (FTW) is one field boundary dataset that can be supplied
-in a compatible GeoParquet; fiboa and FTW are not interchangeable names.
+in a compatible GeoParquet. fiboa and FTW are not interchangeable names.
 }
 \details{
 The selected polygon can provide calibration support for
@@ -53,18 +53,16 @@ is available, it can also act as an age-weighted soft prior during the
 initial area search. Use \code{diagnose_against_ftw()} to compare the
 resulting mask with a field boundary reference.
 
-An attached polygon can influence the delineation. Agreement with that same
-polygon is therefore an in-sample diagnostic, not an independent accuracy
-assessment. Use a separate held-out reference polygon when reporting
-accuracy.
-
-Whether the prior improves field boundary delineation requires independent
-validation. This is therefore an experimental feature.
+This feature is experimental. A polygon used to guide delineation cannot
+also provide independent evidence of its accuracy. Assess improvement
+against a separate reference.
 
 Queries require the optional \code{duckdb} and \code{DBI} packages and a
 locally installed DuckDB spatial extension. Remote sources also require the
-DuckDB \code{httpfs} extension. \code{ocular} does not download or install
-DuckDB extensions automatically.
+DuckDB \code{httpfs} extension. The DuckDB \code{icu} extension is needed
+for \code{source_year}, without which the soft prior is not applied.
+\code{ocular} does not download or install DuckDB extensions
+automatically.
 }
 \examples{
 \dontrun{

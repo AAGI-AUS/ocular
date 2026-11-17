@@ -1,13 +1,11 @@
 #!/usr/bin/env Rscript
 
-# Manual, offline comparison of the current split behaviour.
+# Compare split behaviour offline for author review.
 #
-# The split fixtures in this file are reconstructions from the July prose
-# record. The historical test source, grid dimensions, exact cell coordinates,
-# and feature values are not available. Results are therefore evidence for
-# author review, not release assertions. This script installs nothing, makes
-# no network request, and writes generated artefacts only below
-# ocular/.check-artifacts/.
+# These fixtures reconstruct the July prose record. The original test code,
+# dimensions, coordinates and feature values are unavailable, so these results
+# do not establish release requirements. The script installs nothing, makes no
+# network requests and writes only below ocular/.check-artifacts/.
 
 local({
 

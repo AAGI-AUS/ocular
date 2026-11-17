@@ -1,9 +1,9 @@
 #!/bin/sh
 
-# Run ocular's complete offline release verification from a clean sequence.
+# Run the offline release checks in order.
 #
-# This script does not install dependencies, enable live checks, use a remote
-# repository, or publish anything. All generated files are written below
+# Dependencies must already be installed. The script makes no live queries,
+# uses no remote repository and publishes nothing. Output goes below
 # ocular/.check-artifacts/. Run it with:
 #
 #   /bin/sh ocular/tests/manual/verify-offline-release.sh

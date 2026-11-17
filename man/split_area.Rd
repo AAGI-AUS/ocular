@@ -22,7 +22,8 @@ form.}
 alive-pixel median and the seed signature that counts as divergence.
 Finite alive cells within this distance, using an inclusive comparison,
 can form the protected point-connected component. Exact equality therefore
-qualifies for both comparisons. \code{NULL} disables splitting.}
+qualifies for both comparisons. An explicit \code{NULL} disables
+splitting, and an omitted argument uses the stored setting.}
 
 \item{split_gate}{Number of consecutive measurable divergent perimeter
 steps required before a cut is made. A measurable non-divergent or
@@ -30,18 +31,18 @@ unmeasurable profile clears the streak.}
 
 \item{strictness}{Calibration control. It affects initial area growth when
 \code{segment_area()} must run and updates the calibration record for
-subsequent stages; it does not directly change the split test. See
+subsequent stages. It does not directly change the split test. See
 \code{?rs_params}.}
 
 \item{split_linear}{Whether to use straight line-of-sight cuts rather than
 the default curved cuts.}
 
-\item{params}{Optional, possibly partial \code{rs_params()} list. Overlays
-\code{rs$params} for this call. \code{NULL} keeps the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{...}{Standalone mode forwards remaining arguments to \code{get_rs()}.
 Piped mode accepts further named \code{rs_params()} overrides for this
-call, including \code{multiple_areas}; unknown names error.}
+call, including \code{multiple_areas}. Unknown names are rejected.}
 }
 \value{
 An \code{ocular} object with its revised candidate field mask stored
@@ -50,7 +51,7 @@ An \code{ocular} object with its revised candidate field mask stored
 \description{
 Looks for consecutive measurable line-of-sight profiles whose alive-cell
 medians differ from the seed signature. A profile qualifies when its
-difference meets or exceeds \code{split_sensitivity}; \code{split_gate}
+difference meets or exceeds \code{split_sensitivity}. \code{split_gate}
 controls how many qualifying profiles are required before a cut. Each axis
 is evaluated provisionally. An axis is rejected if it removes any cell in
 the finite, 8-connected seed-signature-matching component containing the
@@ -60,9 +61,7 @@ component, the candidate mask is returned unchanged. Use
 output.
 }
 \details{
-Parameters stored in \code{rs$params} provide the base settings. Named
-arguments supplied here override the corresponding setting for this call
-only. The protected-component rule applies to provisional axis cuts. An
+The protected-component rule applies to provisional axis cuts. An
 explicit stricter connectivity setting can repartition diagonally connected
 cells during later single-area postprocessing, while the component
 containing the supplied-point cell remains rank 1.

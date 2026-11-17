@@ -1,10 +1,9 @@
 #!/usr/bin/env Rscript
 
-# Manual, opt-in release validation for live data services.
+# Check live data services manually, outside the automated suite.
 #
-# This script is not part of the automated test suite. It performs network
-# queries only when OCULAR_RUN_LIVE=true and never installs packages or DuckDB
-# extensions. Run it from the ocular package root; see tests/manual/README.md.
+# Network queries require OCULAR_RUN_LIVE=true. No packages or DuckDB extensions
+# are installed. Run from the ocular package root. See tests/manual/README.md.
 
 .is_true <- function(x) {
   tolower(trimws(x)) %in% c("1", "true", "yes")
@@ -644,7 +643,7 @@
     .assert(!anyNA(as.Date(validation$date)),
             "Fusion validation contains an invalid date.")
     expected_holdout_dates <- unname(sort(as.Date(vapply(
-      rs$scenes, function(scene) as.character(scene$date), character(1L))))
+      rs$scenes, function(scene) as.character(scene$date), character(1L)))))
     validation_dates <- unname(sort(as.Date(validation$date)))
     .assert(identical(validation_dates, expected_holdout_dates),
             paste0("Fusion validation did not return one held-out row for ",

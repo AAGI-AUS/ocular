@@ -24,6 +24,19 @@ test_that("ocular objects validate and print without dumping raster contents", {
   expect_error(ocular:::.validateOcular(bad_params), "unknown parameter")
 })
 
+test_that("print reports a pending pre-cleanup only while it is active", {
+  rs <- .make_test_rs()
+  state_line <- function(x) grep("state:", capture.output(print(x)), value = TRUE)
+  expect_match(state_line(trace_perimeter(rs)), "pre-cleanup pending", fixed = TRUE)
+  segmented <- suppressMessages(segment_area(rs))
+  expect_false(isTRUE(attr(segmented, "pending")$pre_cleanup$active))
+  expect_identical(state_line(segmented),
+                   sprintf("  state:    %d alive px", sum(segmented$state$alive_mat)))
+  delineated <- suppressMessages(boundary_delineation(rs))
+  expect_identical(state_line(delineated),
+                   sprintf("  state:    %d alive px", sum(delineated$state$alive_mat)))
+})
+
 test_that("new objects use the ocular class", {
   current <- ocular:::.newOcular()
   expect_identical(class(current), "ocular")
@@ -68,6 +81,19 @@ test_that("all-missing sums remain missing rather than becoming zero", {
   expect_true(all(is.na(terra::values(raster))))
   series <- as_time_series(rs, aggregate_function = "sum")
   expect_equal(nrow(series), 0L)
+})
+
+test_that("as_raster composites an object holding one scene", {
+  rs <- .make_test_rs()
+  rs$scenes <- rs$scenes[1L]
+  values <- terra::values(rs$scenes[[1L]]$index)[, 1L]
+  values[1:10] <- NA
+  rs$scenes[[1L]]$index <- terra::setValues(rs$scenes[[1L]]$index, values)
+  for (composite_function in c("median", "mean", "max", "min", "sum")) {
+    out <- as_raster(rs, composite_function = composite_function)
+    expect_equal(terra::nlyr(out), 1L)
+    expect_equal(terra::values(out)[, 1L], values)
+  }
 })
 
 test_that("as_time_series supports explicit buckets and scalar aggregation", {
@@ -118,4 +144,36 @@ test_that("band harmonisation checks full geometry, not x resolution alone", {
     list(assets = c("nir08", "red"),
          fun = function(r) (r$nir08 - r$red) / (r$nir08 + r$red)))
   expect_true(is.na(terra::values(idx)[[1L]]))
+})
+
+test_that("aggregated series with fused scenes are in calendar order", {
+  rs <- .make_test_rs(field = FALSE, fused = TRUE)
+  later <- rs$scenes[[1L]]
+  later$date <- as.Date("2021-02-03")
+  rs$scenes <- c(rs$scenes, list(later))
+
+  monthly <- as_time_series(rs, time_aggregate = "monthly")
+  expect_equal(monthly$date, c("2021-01", "2021-01", "2021-02"))
+  expect_equal(monthly$is_fused, c(FALSE, TRUE, FALSE))
+  expect_equal(monthly$value, c(0.1, 0.12, 0.1), tolerance = 1e-7)
+  expect_equal(rownames(monthly), c("1", "2", "3"))
+})
+
+test_that("undelineated series summarise the cells that as_raster returns", {
+  rs <- .make_test_rs(field = FALSE)
+  rs$spec$point <- list(longitude = 119.9, latitude = -32)
+  centre <- terra::project(terra::vect(cbind(119.9, -32), crs = "EPSG:4326"),
+                           rs_utm(rs))
+  xy <- terra::geom(centre)[1L, c("x", "y")]
+  x0 <- floor((xy[["x"]] - 315) / 10) * 10
+  y0 <- floor((xy[["y"]] - 315) / 10) * 10
+  scene <- terra::rast(nrows = 63, ncols = 63, xmin = x0, xmax = x0 + 630,
+                       ymin = y0, ymax = y0 + 630, crs = rs_utm(rs))
+  scene <- terra::setValues(scene, seq_len(terra::ncell(scene)) / 4000)
+  rs$scenes <- rs$scenes[1L]
+  rs$scenes[[1L]]$index <- scene
+
+  out <- as_time_series(rs)
+  cells <- as_raster(rs)
+  expect_equal(out$value, terra::global(cells, "mean")[[1L]], tolerance = 1e-12)
 })

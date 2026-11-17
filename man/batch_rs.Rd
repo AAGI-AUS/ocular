@@ -24,10 +24,10 @@ batch_rs(
 }
 \arguments{
 \item{sites}{A \code{data.frame} with columns \code{id}, \code{longitude},
-\code{latitude}, \code{start_date}, and \code{end_date}; one row per
+\code{latitude}, \code{start_date}, and \code{end_date}, with one row per
 site and date range.}
 
-\item{index_name}{Index to calculate; see \code{get_rs()}.}
+\item{index_name}{Index to calculate. See \code{get_rs()}.}
 
 \item{source}{Image source passed to \code{get_rs()}. The default is
 \code{"auto"}.}
@@ -57,23 +57,45 @@ cache directory.}
 \code{pipeline}. A custom function is not cached unless this is supplied,
 because its body does not identify captured values reliably.}
 
-\item{retries}{Number of retrieval attempts per site. The post-retrieval
-function is evaluated once, after retrieval succeeds.}
+\item{retries}{Maximum retrieval attempts per site, or \code{Inf} for no
+limit. Unfinished sites are visited in input order once per round. Only
+classified transient STAC query or transport failures are retried.
+Invalid requests, no scenes, unclassified errors, and pipeline failures
+are final. Asset-reading failures are not retried by the batch schedule.
+Rounds wait 2, 4, 8, 16, 32, then 60 seconds
+between retries. Each visit makes one STAC query attempt, including any
+pagination and signing. The pipeline runs once after retrieval succeeds.}
 
-\item{cloud_relax}{Cloud-cover ceiling considered on the final attempt when
-\code{retries > 1}. The final ceiling is the greater of this value and
-\code{max_cloud_cover}.}
+\item{cloud_relax}{Cloud-cover ceiling considered on the final attempt of a
+finite budget when \code{retries > 1}. The final ceiling is the greater of
+this value and \code{max_cloud_cover}. Unlimited retries keep
+\code{max_cloud_cover}. A no-scenes result is final, so it does not advance
+to a later attempt with a relaxed ceiling.}
 
-\item{on_error}{\code{"skip"} (default) records the failure and continues;
-\code{"stop"} aborts the sweep.}
+\item{on_error}{\code{"skip"} (default) records a final failure and continues.
+\code{"stop"} aborts when a failure is final or its attempts are exhausted.
+An interrupt returns completed results for either setting.}
 
 \item{quiet}{Whether to suppress per-site progress messages.}
 }
 \value{
 A \code{data.frame} with \code{id}, \code{index}, \code{source},
   \code{date}, and \code{value}. Failed sites are absent and recorded in the
-  \code{"failures"} attribute with their \code{id}, \code{index}, and
-  \code{reason}.
+  \code{"failures"} attribute with their \code{id}, \code{index},
+  \code{reason}, \code{attempts}, and \code{last_error}. Attempts count
+  calls to \code{get_rs()}, including one interrupted during retrieval or
+  its pipeline. If interrupted, completed rows are returned and unfinished
+  sites are recorded as interrupted, retaining their last retrieval error.
+  Results and failures follow the input site order.
+  The \code{"outcomes"} attribute has one row per input site, in input
+  order, including repeated IDs. Its columns are \code{id}, \code{index},
+  \code{status}, \code{dates}, \code{attempts}, and \code{cached}. Status is
+  \code{"success"}, \code{"empty"}, \code{"failure"}, or
+  \code{"interrupted"}. Empty successes produce no result rows or failures.
+  \code{dates} counts returned date rows, with zero for an empty success
+  and \code{NA} for failure or interruption. \code{attempts} counts
+  retrieval calls in this invocation, so a cache-only hit has zero attempts.
+  \code{cached} is true only for a completed result read from cache.
 }
 \description{
 For each row of \code{sites}, retrieves scenes with \code{get_rs()} and
@@ -90,6 +112,7 @@ sites <- data.frame(id = c("a", "b"),
                     start_date = c("2019-03-26", "2019-03-11"),
                     end_date   = c("2019-08-20", "2019-08-05"))
 ts <- batch_rs(sites, index_name = "GNDVI", x_metres = 1200)
+attr(ts, "outcomes")
 attr(ts, "failures")
 }
 }

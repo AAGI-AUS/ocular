@@ -28,17 +28,14 @@ form.}
 tolerance used when calibrated per-window tolerances are not applied.
 \code{NULL} uses the effective stored or calibrated setting.}
 
-\item{area_threshold}{Call-level override for the inclusive lower and upper
-spectral index bounds used by the flood-fill plausibility gate.}
+\item{area_threshold}{Inclusive lower and upper spectral index bounds for
+this call.}
 
-\item{strictness}{Calibration control selecting the robustness multiple
-applied to measured per-window dispersion. Changing it for this call
-reruns calibration from the existing feature stack. See
-\code{?rs_params}.}
+\item{strictness}{Controls calibrated spectral matching tolerance. Changing
+it recalibrates the existing feature stack. See \code{\link{rs_params}}.}
 
-\item{local_alive_density}{Call-level override for the local proportion of
-predicate-passing visited 8-neighbours required to admit a candidate
-during the flood fill.}
+\item{local_alive_density}{Minimum proportion of a candidate cell's visited
+8-neighbours that must pass the spectral tests before the cell is added.}
 
 \item{time_independent_windows}{Whether to fill each selected composite
 window separately and union the masks (\code{TRUE}, the default), or run
@@ -51,37 +48,37 @@ delineation: \code{"all"} or a unique integer vector.}
 windows in which a pixel must match the seed signature. It is not used by
 the default independent-window fills.}
 
-\item{perimeter_margins, trace_iter}{Cleanup thresholds and maximum iterations
-used only when an upstream \code{trace_perimeter()} call has staged
-perimeter cleanup. Cleanup is applied to the filled or unioned mask.}
+\item{perimeter_margins, trace_iter}{Cleanup thresholds and maximum
+iterations. A cleanup staged by an upstream \code{trace_perimeter()} call
+uses the settings given to \code{trace_perimeter()}, and these arguments
+do not alter it. Cleanup is applied to the filled or unioned mask.}
 
 \item{merge_separate_areas}{Whether to attempt to bridge disconnected
 candidate components before single-area trimming.}
 
-\item{params}{Optional, possibly partial \code{rs_params()} list. Overlays
-\code{rs$params} for this call. \code{NULL} keeps the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{...}{In standalone mode, forwards remaining arguments to
 \code{get_rs()}. In piped mode, accepts further named \code{rs_params()}
-overrides for this call; unknown names error.}
+overrides for this call. Unknown names are rejected.}
 }
 \value{
 An \code{ocular} object with the candidate field mask stored in
   \code{state$alive_mat}.
 }
 \description{
-Uses the supplied point as the seed for a constrained breadth-first search
-flood fill over a multi-temporal spectral feature stack. By default, each
-selected composite window is filled independently and the resulting masks
-are unioned; joint filling is also available. This is the initial area-growth
-stage of \code{boundary_delineation()}. Use
-\code{trace_perimeter()}, \code{segment_interior()}, and \code{split_area()}
-when composing a custom workflow.
+Grows a candidate field from the supplied point using spectral similarity
+across a multi-temporal feature stack. By default, it fills each selected
+composite window separately and combines the masks. A joint fill across
+windows is also available.
 }
 \details{
-Parameters stored in \code{rs$params} provide the base settings. An eligible
-calibration record can supply per-window signatures and matching tolerances;
-otherwise the configured scalar \code{area_sensitivity} is used. Values
-supplied in \code{params} and non-\code{NULL} named arguments override the
-effective settings for this call only and do not modify \code{rs$params}.
+If a mask is already present, the search is confined to that mask. Each
+connected area starts at the eligible cell nearest the query point.
+Calibration can supply a signature and matching tolerance for each window.
+Without suitable calibration, the configured \code{area_sensitivity} is used.
+When filling uses calibration, an eligible calibrated signature replaces a
+missing learned signature for merging and later stages. Finite learned
+signatures are retained.
 }
