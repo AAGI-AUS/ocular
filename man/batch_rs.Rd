@@ -17,7 +17,7 @@ batch_rs(
   cache_dir = NULL,
   pipeline_cache_key = NULL,
   retries = 3L,
-  cloud_relax = 80L,
+  cloud_relax = NULL,
   on_error = c("skip", "stop"),
   quiet = FALSE
 )
@@ -35,8 +35,8 @@ site and date range.}
 \item{x_metres, y_metres}{Width and height of the analysis area in metres.
 If \code{y_metres} is \code{NULL}, \code{x_metres} is used for both.}
 
-\item{max_cloud_cover}{Maximum scene-level cloud cover for the ordinary
-retrieval attempts.}
+\item{max_cloud_cover}{Maximum scene-level cloud cover, from 0 to 100.
+Every retrieval attempt uses this ceiling, including retries.}
 
 \item{params}{Optional complete or partial list of settings accepted by
 \code{rs_params()}, passed to each \code{get_rs()} call.}
@@ -66,11 +66,8 @@ Rounds wait 2, 4, 8, 16, 32, then 60 seconds
 between retries. Each visit makes one STAC query attempt, including any
 pagination and signing. The pipeline runs once after retrieval succeeds.}
 
-\item{cloud_relax}{Cloud-cover ceiling considered on the final attempt of a
-finite budget when \code{retries > 1}. The final ceiling is the greater of
-this value and \code{max_cloud_cover}. Unlimited retries keep
-\code{max_cloud_cover}. A no-scenes result is final, so it does not advance
-to a later attempt with a relaxed ceiling.}
+\item{cloud_relax}{Deprecated. Ignored after validation. Every attempt uses
+\code{max_cloud_cover}.}
 
 \item{on_error}{\code{"skip"} (default) records a final failure and continues.
 \code{"stop"} aborts when a failure is final or its attempts are exhausted.
@@ -80,7 +77,9 @@ An interrupt returns completed results for either setting.}
 }
 \value{
 A \code{data.frame} with \code{id}, \code{index}, \code{source},
-  \code{date}, and \code{value}. Failed sites are absent and recorded in the
+  \code{date}, and \code{value}. Complete daily dates are returned as
+  \code{Date} values. Month or year labels from a custom pipeline remain
+  character strings. Failed sites are absent and recorded in the
   \code{"failures"} attribute with their \code{id}, \code{index},
   \code{reason}, \code{attempts}, and \code{last_error}. Attempts count
   calls to \code{get_rs()}, including one interrupted during retrieval or

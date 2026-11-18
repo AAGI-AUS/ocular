@@ -55,6 +55,9 @@ Printing the `ocular` object reports the source, scene count and mask-cell
 count when available. The object keeps the retrieved scenes, query and settings. Keep `rs`
 as the starting point for comparing workflows.
 
+Detection features and calibration are prepared when delineation needs them.
+You can use `rs` directly for raster or time-series extraction.
+
 ## Delineate and inspect a field
 
 `boundary_delineation()` uses the supplied point as a seed and compares
@@ -82,6 +85,16 @@ The series includes available dates, not a complete daily calendar. These
 values describe the selected imagery and mask, not a validated field boundary.
 For monthly or yearly summaries, see `time_aggregate` in `?as_time_series`.
 
+Daily dates are returned as text in `YYYY-MM-DD` format. Use `as.Date()` for
+a date axis in base R:
+
+```{r plot-daily-series, eval=FALSE}
+if( nrow(vi_series) > 0L ){
+  plot(as.Date(vi_series$date), vi_series$value,
+       type = "p", xlab = "Date", ylab = "Mean NDVI")
+}
+```
+
 Save the outputs using their usual R interfaces:
 
 ```{r save-outputs, eval=FALSE}
@@ -93,6 +106,9 @@ write.csv(vi_series, "field-ndvi.csv", row.names = FALSE)
 
 - **No scenes were retrieved:** check the source, dates, location and
   `max_cloud_cover`. No-scenes errors are different from an empty delineation.
+- **Detection features could not be prepared:** `rs` still contains the output
+  observations. Use `as_raster(rs)` or `as_time_series(rs)` for extraction.
+  For delineation, review the reported detection dates and available imagery.
 - **No candidate field was identified:** the raster is all `NA` and the series
   has no rows. Check the point and imagery. Use a new `get_rs()` call to change
   the point, dates or retrieval filters; reuse `rs` to compare delineation

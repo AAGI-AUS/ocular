@@ -536,19 +536,34 @@ add_ftw_prior <- function(rs, source, crs = 4326L, refresh = FALSE,
   }
   yr <- if( is.finite(yr) ) { as.integer(round(yr)) } else { NULL }
 
+  # Preserve the existing prior's calibration if its replacement cannot calibrate.
+  if( !is.null(rs$geom$ftw_prior) && is.null(rs$internals$feature_stack) ){
+    rs <- .fetchFeatureStack(rs)
+  }
   rs$geom$ftw_prior <- list(polygon = polygons, source_year = yr)
   # Replace seed support with the newly attached field's support.
-  if( !is.null(rs$internals$feature_stack) ){
-    updated <- tryCatch(.calibrateScene(rs), error = identity)
-    if( !inherits(updated, "error") && is.null(updated$error) ){
-      rs$internals$calibration <- updated
-    }else{
-      msg <- if( inherits(updated, "error") ) { conditionMessage(updated) } else { updated$error }
-      warning("add_ftw_prior(): FTW calibration was unavailable. The prior ",
-              "calibration was preserved. ", msg, call. = FALSE)
-    }
-  }
+  rs <- .calibrateAttachedPrior(rs)
   message(sprintf("add_ftw_prior(): seed field attached%s.",
                   if( is.null(yr) ) { "" } else { sprintf(" (source_year %d)", yr) }))
+  return(rs)
+}
+
+#' Calibrate an attached field prior when detection features are available
+#'
+#' Preserve the existing calibration if the prior cannot supply support.
+#' @noRd
+.calibrateAttachedPrior <- function(rs){
+
+  if( is.null(rs$internals$feature_stack) || is.null(rs$geom$ftw_prior) ){
+    return(rs)
+  }
+  updated <- tryCatch(.calibrateScene(rs), error = identity)
+  if( !inherits(updated, "error") && is.null(updated$error) ){
+    rs$internals$calibration <- updated
+  }else{
+    msg <- if( inherits(updated, "error") ) { conditionMessage(updated) } else { updated$error }
+    warning("FTW calibration was unavailable. The prior calibration was preserved. ",
+            msg, call. = FALSE)
+  }
   return(rs)
 }

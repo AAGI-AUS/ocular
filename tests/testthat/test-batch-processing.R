@@ -2,31 +2,31 @@ test_that("batch cache keys are safe and include result-changing inputs", {
   p <- rs_params()
   key <- ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                                "../../NDVI", "auto", 100, 100, 50, p,
-                               3L, 80, "default")
+                               3L, "default")
   expect_match(key, "^[0-9a-f]{24}\\.rds$")
   expect_false(grepl("[/\\\\]", key))
   expect_false(identical(
     key,
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "../../NDVI", "auto", 100, 100, 50,
-                          rs_params(strictness = "tight"), 3L, 80, "default")))
+                          rs_params(strictness = "tight"), 3L, "default")))
+  expect_false(identical(
+    key,
+    ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
+                          "../../NDVI", "auto", 100, 100, 60, p,
+                          3L, "default")))
   expect_false(identical(
     key,
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "../../NDVI", "auto", 100, 100, 50, p,
-                          3L, 90, "default")))
-  expect_false(identical(
-    key,
-    ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
-                          "../../NDVI", "auto", 100, 100, 50, p,
-                          3L, 80, "other-pipeline")))
+                          3L, "other-pipeline")))
   expect_false(identical(
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "NDVI", "auto", 100, 100, 50, p,
-                          2L, 80, "default"),
+                          2L, "default"),
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "NDVI", "auto", 100, 100, 50, p,
-                          3L, 80, "default")))
+                          3L, "default")))
 })
 
 test_that("batch cache keys ignore numeric storage type", {
@@ -34,10 +34,10 @@ test_that("batch cache keys ignore numeric storage type", {
   expect_identical(
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "NDVI", "auto", 1000L, 1000L, 50L, p,
-                          3L, 80L, "default"),
+                          3L, "default"),
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "NDVI", "auto", 1000, 1000, 50, p,
-                          3L, 80, "default"))
+                          3L, "default"))
 })
 
 test_that("batch cache keys change with the package version", {
@@ -45,7 +45,7 @@ test_that("batch cache keys change with the package version", {
   key <- function(...){
     ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
                           "NDVI", "auto", 1000, 1000, 50, p,
-                          3L, 80, "default", ...)
+                          3L, "default", ...)
   }
   expect_identical(key(),
                    key(package_version = as.character(utils::packageVersion("ocular"))))
@@ -157,24 +157,24 @@ test_that("batch accepts empty results and valid month buckets safely", {
   empty <- ocular:::.batchFetchOne(
     117.8, -32, "2021-01-01", "2021-02-01", "EVI2", "landsat-8",
     100, 100, 50, rs_params(),
-    function(rs) data.frame(date = character(), value = numeric()), 1L, 80)
+    function(rs) data.frame(date = character(), value = numeric()))
   expect_equal(nrow(empty$data), 0L)
 
   monthly <- ocular:::.batchFetchOne(
     117.8, -32, "2021-01-01", "2021-02-01", "EVI2", "landsat-8",
     100, 100, 50, rs_params(),
-    function(rs) data.frame(date = "2021-01", value = 0.5), 1L, 80)
+    function(rs) data.frame(date = "2021-01", value = 0.5))
   expect_identical(monthly$data$date, "2021-01")
 
   matrix_value <- ocular:::.batchFetchOne(
     117.8, -32, "2021-01-01", "2021-02-01", "EVI2", "landsat-8",
     100, 100, 50, rs_params(),
     function(rs) data.frame(date = "2021-01-05",
-                            value = I(matrix(c(1, 2), nrow = 1L))), 1L, 80)
+                            value = I(matrix(c(1, 2), nrow = 1L))))
   expect_s3_class(matrix_value, "error")
 })
 
-test_that("one retry never applies cloud relaxation", {
+test_that("a batch visit uses the requested cloud ceiling", {
   clouds <- numeric()
   testthat::local_mocked_bindings(
     get_rs = function(..., max_cloud_cover){
@@ -183,7 +183,7 @@ test_that("one retry never applies cloud relaxation", {
     }, .package = "ocular")
   got <- ocular:::.batchFetchOne(
     117.8, -32, "2021-01-01", "2021-02-01", "EVI2", "landsat-8",
-    100, 100, 50, rs_params(), identity, 1L, 80)
+    100, 100, 50, rs_params(), identity)
   expect_s3_class(got, "error")
   expect_equal(clouds, 50)
 })

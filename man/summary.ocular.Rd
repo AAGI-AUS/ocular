@@ -15,6 +15,7 @@
 \code{object} invisibly.
 }
 \description{
-Adds query details, geometry, scene counts, processing state and changed
-parameters to the compact \code{print()} summary.
+Adds query details, geometry, scene counts, processing state and stored
+parameter values to the compact \code{print()} summary. Stored parameters
+do not record every override supplied to later calls.
 }

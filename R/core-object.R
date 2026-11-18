@@ -252,8 +252,9 @@ rs_utm <- function(rs){
 
 #' Print method for an ocular object
 #'
-#' Shows the query, imagery source, mask cell count and non-default settings
-#' without printing the underlying raster data.
+#' Shows the query, imagery source and delineation mask state without printing
+#' the underlying raster data. Stored parameters supplied by the user or changed
+#' from defaults are shown. User-supplied settings are marked as user input.
 #'
 #' @param x An ocular object.
 #' @param ... Ignored.
@@ -281,24 +282,28 @@ print.ocular <- function(x, ...){
                 n_scenes))
   }
 
-  state_parts <- character(0L)
-  if( !is.null(x$state$alive_mat) ){
-    state_parts <- c(state_parts, sprintf("%d alive px", sum(x$state$alive_mat)))
+  state_parts <- if( is.null(x$state$alive_mat) ){
+    "no delineation mask"
+  }else if( !any(x$state$alive_mat) ){
+    "empty delineation mask"
+  }else{
+    sprintf("%d cells in delineation mask", sum(x$state$alive_mat))
   }
   if( isTRUE(attr(x, "pending")$pre_cleanup$active) ){
     state_parts <- c(state_parts, "pre-cleanup pending")
   }
-  if( length(state_parts) > 0L ){
-    cat(sprintf("  state:    %s\n", paste(state_parts, collapse = " | ")))
-  }
+  cat(sprintf("  state:    %s\n", paste(state_parts, collapse = " | ")))
 
   if( length(x$params) > 0L ){
     defaults <- rs_params()
     differs <- vapply(names(x$params), function(nm){
       return(!identical(x$params[[nm]], defaults[[nm]]))
     }, logical(1L))
-    user_mods <- names(x$params)[differs]
+    user_set <- attr(x$params, "user_set", exact = TRUE) %||% character(0L)
+    user_mods <- names(x$params)[differs | names(x$params) %in% user_set]
     if( length(user_mods) > 0L ){
+      user_mods <- ifelse(user_mods %in% user_set,
+                          paste0(user_mods, " (user input)"), user_mods)
       preview <- if( length(user_mods) <= 4L ){
         paste(user_mods, collapse = ", ")
       }else{
@@ -306,8 +311,7 @@ print.ocular <- function(x, ...){
                                         length(user_mods) - 4L)),
               collapse = ", ")
       }
-      cat(sprintf("  params:   %d non-default (%s)\n",
-                  length(user_mods), preview))
+      cat(sprintf("  stored parameters: %s\n", preview))
     }
   }
 
@@ -316,8 +320,9 @@ print.ocular <- function(x, ...){
 
 #' Detailed summary for an ocular object
 #'
-#' Adds query details, geometry, scene counts, processing state and changed
-#' parameters to the compact \code{print()} summary.
+#' Adds query details, geometry, scene counts, processing state and stored
+#' parameter values to the compact \code{print()} summary. Stored parameters
+#' do not record every override supplied to later calls.
 #'
 #' @param object An ocular object.
 #' @param ... Ignored.
@@ -361,12 +366,21 @@ summary.ocular <- function(object, ...){
     differs <- vapply(names(object$params), function(nm){
       return(!identical(object$params[[nm]], defaults[[nm]]))
     }, logical(1L))
-    if( any(differs) ){
-      cat("\n--- params (non-default) ---\n")
-      utils::str(object$params[differs], max.level = 1L, give.attr = FALSE)
+    user_set <- attr(object$params, "user_set", exact = TRUE)
+    shown <- names(object$params)[differs | names(object$params) %in% user_set]
+    cat("\n--- stored parameters ---\n")
+    if( length(shown) > 0L ){
+      for( nm in shown ){
+        value <- paste(deparse(object$params[[nm]], width.cutoff = 100L), collapse = " ")
+        flag <- if( nm %in% user_set ) { " (user input)" } else { "" }
+        cat(sprintf("%s: %s%s\n", nm, value, flag))
+      }
+    }else if( is.null(user_set) ){
+      cat("All stored values match defaults. User input was not recorded.\n")
     }else{
-      cat("\n--- params --- all at rs_params() defaults\n")
+      cat("All defaults, no user input.\n")
     }
+    cat("Stored parameters do not record every override supplied to later calls.\n")
   }
 
   return(invisible(object))

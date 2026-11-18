@@ -168,7 +168,7 @@ test_that("get_rs forwards processing selection and batch cache keys distinguish
   args <- list(longitude = 147.227906, latitude = -33.0675167,
                 start_date = "2022-08-01", end_date = "2022-10-01", index_name = "NDVI",
                 source = "sentinel-2", x_metres = 1000, y_metres = 1000, max_cloud_cover = 50,
-                retries = 3L, cloud_relax = 70, pipeline_cache_key = "test",
+                retries = 3L, pipeline_cache_key = "test",
                 package_version = "0.1.1.9000", params = rs_params())
   highest <- do.call(ocular:::.rsCacheKey, args)
   args$params <- rs_params(s2_processing = "lowest_baseline")

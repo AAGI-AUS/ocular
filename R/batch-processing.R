@@ -27,7 +27,7 @@
 #' @noRd
 .rsCacheKey <- function(longitude, latitude, start_date, end_date, index_name,
                         source, x_metres, y_metres, max_cloud_cover, params,
-                        retries, cloud_relax, pipeline_cache_key,
+                        retries, pipeline_cache_key,
                         package_version = as.character(utils::packageVersion("ocular"))){
 
   # Use one numeric type so equivalent requests share a key. Include the package
@@ -44,9 +44,7 @@
     max_cloud_cover = as.numeric(max_cloud_cover),
     params = params,
     retries = retries,
-    retry_policy = "rounds-transient-v1",
-    relaxed_final_attempt = is.finite(retries) && retries > 1L,
-    cloud_relax = as.numeric(cloud_relax),
+    retry_policy = "rounds-fixed-cloud-v2",
     pipeline_cache_key = pipeline_cache_key,
     package_version = package_version)
   return(paste0(substr(.stableHash(query), 1L, 24L), ".rds"))
@@ -210,22 +208,19 @@ clear_rs_cache <- function(cache_dir = NULL){
 
 #' Retrieve and process one site
 #'
-#' With a finite retry budget, relax the cloud limit on the last attempt only
-#' if more than one attempt was requested. Unlimited retries keep the requested
-#' limit. Retry transient retrieval failures, but run the pipeline only once.
+#' Every retrieval attempt uses the requested \code{max_cloud_cover}, including
+#' retries. Retry transient retrieval failures, but run the pipeline only once.
 #' @noRd
 .batchFetchOne <- function(longitude, latitude, start_date, end_date, index_name,
                            source, x_metres, y_metres, max_cloud_cover, params,
-                           pipeline, retries, cloud_relax, attempt = 1){
+                           pipeline){
 
-  relax <- is.finite(retries) && retries > 1L && attempt == retries
-  cc <- if( relax ) { max(max_cloud_cover, cloud_relax) } else { max_cloud_cover }
   rs <- tryCatch(
     .batchGetRs(longitude = longitude, latitude = latitude,
                 start_date = as.character(start_date),
                 end_date = as.character(end_date), index_name = index_name,
                 source = source, x_metres = x_metres, y_metres = y_metres,
-                max_cloud_cover = cc, params = params),
+                max_cloud_cover = max_cloud_cover, params = params),
     error = identity)
   if( inherits(rs, "error") ){
     return(errorCondition(.stripUrlQuery(conditionMessage(rs)),
@@ -252,7 +247,7 @@ clear_rs_cache <- function(cache_dir = NULL){
   }
   return(list(data = data.frame(source = rep(rs$geom$source, nrow(d)), date = dates,
                                 value = d$value, stringsAsFactors = FALSE),
-              n_scenes = length(rs$scenes), cloud = cc))
+              n_scenes = length(rs$scenes), cloud = max_cloud_cover))
 }
 
 
@@ -276,8 +271,8 @@ clear_rs_cache <- function(cache_dir = NULL){
 #'   \code{"auto"}.
 #' @param x_metres,y_metres Width and height of the analysis area in metres.
 #'   If \code{y_metres} is \code{NULL}, \code{x_metres} is used for both.
-#' @param max_cloud_cover Maximum scene-level cloud cover for the ordinary
-#'   retrieval attempts.
+#' @param max_cloud_cover Maximum scene-level cloud cover, from 0 to 100.
+#'   Every retrieval attempt uses this ceiling, including retries.
 #' @param params Optional complete or partial list of settings accepted by
 #'   \code{rs_params()}, passed to each \code{get_rs()} call.
 #' @param pipeline Post-retrieval function that accepts an \code{ocular} object
@@ -300,17 +295,16 @@ clear_rs_cache <- function(cache_dir = NULL){
 #'   Rounds wait 2, 4, 8, 16, 32, then 60 seconds
 #'   between retries. Each visit makes one STAC query attempt, including any
 #'   pagination and signing. The pipeline runs once after retrieval succeeds.
-#' @param cloud_relax Cloud-cover ceiling considered on the final attempt of a
-#'   finite budget when \code{retries > 1}. The final ceiling is the greater of
-#'   this value and \code{max_cloud_cover}. Unlimited retries keep
-#'   \code{max_cloud_cover}. A no-scenes result is final, so it does not advance
-#'   to a later attempt with a relaxed ceiling.
+#' @param cloud_relax Deprecated. Ignored after validation. Every attempt uses
+#'   \code{max_cloud_cover}.
 #' @param on_error \code{"skip"} (default) records a final failure and continues.
 #'   \code{"stop"} aborts when a failure is final or its attempts are exhausted.
 #'   An interrupt returns completed results for either setting.
 #' @param quiet Whether to suppress per-site progress messages.
 #' @returns A \code{data.frame} with \code{id}, \code{index}, \code{source},
-#'   \code{date}, and \code{value}. Failed sites are absent and recorded in the
+#'   \code{date}, and \code{value}. Complete daily dates are returned as
+#'   \code{Date} values. Month or year labels from a custom pipeline remain
+#'   character strings. Failed sites are absent and recorded in the
 #'   \code{"failures"} attribute with their \code{id}, \code{index},
 #'   \code{reason}, \code{attempts}, and \code{last_error}. Attempts count
 #'   calls to \code{get_rs()}, including one interrupted during retrieval or
@@ -345,7 +339,7 @@ batch_rs <- function(sites, index_name = "EVI2", source = "auto",
                      max_cloud_cover = 50L, params = NULL, pipeline = NULL,
                      cache = TRUE, cache_dir = NULL, pipeline_cache_key = NULL,
                      retries = 3L,
-                     cloud_relax = 80L, on_error = c("skip", "stop"),
+                     cloud_relax = NULL, on_error = c("skip", "stop"),
                      quiet = FALSE){
 
   on_error <- match.arg(on_error)
@@ -386,8 +380,12 @@ batch_rs <- function(sites, index_name = "EVI2", source = "auto",
       max_cloud_cover > 100 ){
     stop("batch_rs(): `max_cloud_cover` must be in [0, 100].", call. = FALSE)
   }
-  if( !.isScalarNumber(cloud_relax) || cloud_relax < 0 || cloud_relax > 100 ){
-    stop("batch_rs(): `cloud_relax` must be in [0, 100].", call. = FALSE)
+  if( !is.null(cloud_relax) ){
+    if( !.isScalarNumber(cloud_relax) || cloud_relax < 0 || cloud_relax > 100 ){
+      stop("batch_rs(): `cloud_relax` must be in [0, 100].", call. = FALSE)
+    }
+    warning("batch_rs(): `cloud_relax` is deprecated and ignored. ",
+            "Retries keep `max_cloud_cover` unchanged.", call. = FALSE)
   }
   unlimited <- is.numeric(retries) && !is.complex(retries) &&
     length(retries) == 1L && !is.na(retries) && retries == Inf
@@ -477,7 +475,7 @@ batch_rs <- function(sites, index_name = "EVI2", source = "auto",
         }else{
           key <- .rsCacheKey(s$longitude, s$latitude, s$start_date, s$end_date,
                              index_name, source, x_metres, y_metres,
-                             max_cloud_cover, params, retries, cloud_relax,
+                             max_cloud_cover, params, retries,
                              pipeline_cache_key)
           f <- if( is.null(dir_use) ) { NULL } else { file.path(dir_use, key) }
           hit <- NULL
@@ -503,8 +501,7 @@ batch_rs <- function(sites, index_name = "EVI2", source = "auto",
           got <- tryCatch(
             .batchFetchOne(s$longitude, s$latitude, s$start_date, s$end_date,
                            index_name, source, x_metres, y_metres,
-                           max_cloud_cover, params, pipeline, retries,
-                           cloud_relax, attempt = attempts[[i]]),
+                           max_cloud_cover, params, pipeline),
             error = identity)
         }
         if( inherits(got, "error") ){
@@ -538,7 +535,7 @@ batch_rs <- function(sites, index_name = "EVI2", source = "auto",
                             meta = list(key = key, created_at = Sys.time(),
                                         cloud_used = got$cloud,
                                         attempts = attempts[[i]],
-                                        retry_policy = "rounds-transient-v1"))
+                                        retry_policy = "rounds-fixed-cloud-v2"))
           tryCatch(saveRDS(cache_obj, f), error = function(e){
             warning("batch_rs(): cache write failed for ", s$id, ": ",
                     .stripUrlQuery(conditionMessage(e)), call. = FALSE)

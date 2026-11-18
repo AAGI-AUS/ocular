@@ -41,7 +41,9 @@ for this call.}
 }
 \value{
 A \code{data.frame}. Single-area or undelineated output contains
-  \code{date} and \code{value}. Multiple-area output contains \code{date},
+  \code{date} and \code{value}. Dates are character strings: \code{YYYY-MM-DD}
+  for daily output, \code{YYYY-MM} for monthly output, and \code{YYYY} for
+  yearly output. Multiple-area output contains \code{date},
   one \code{area_*} column per component, and \code{union}. A series with
   fused estimates also contains \code{is_fused}, \code{anchor_days},
   \code{anchor_mae}, and \code{anchor_nmae}. The latter two measure mismatch
