@@ -12,6 +12,13 @@
 #' If the object already has a mask, the workflow processes that mask again
 #' using the existing spectral data and current settings.
 #'
+#' The workflow runs \code{trace_perimeter()}, \code{segment_area()},
+#' \code{trace_perimeter()}, \code{split_area()}, \code{trace_perimeter()},
+#' \code{segment_interior()} and \code{trace_perimeter()}, in that order.
+#' It then runs \code{cleanup_boundary} additional split-and-cleanup pairs,
+#' followed by two closing split-and-cleanup pairs. The first perimeter call
+#' schedules cleanup when no mask is present.
+#'
 #' The two closing cleanups use perimeter margins \code{c(0.3, 0.9)} and
 #' \code{c(0.5, 0.5, 1)}. Supply \code{perimeter_margins} in \code{...} to
 #' replace both values.

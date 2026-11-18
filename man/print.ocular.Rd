@@ -15,6 +15,7 @@
 \code{x} invisibly.
 }
 \description{
-Shows the query, imagery source, mask cell count and non-default settings
-without printing the underlying raster data.
+Shows the query, imagery source and delineation mask state without printing
+the underlying raster data. Stored parameters supplied by the user or changed
+from defaults are shown. User-supplied settings are marked as user input.
 }

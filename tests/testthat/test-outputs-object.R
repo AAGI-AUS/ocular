@@ -24,17 +24,58 @@ test_that("ocular objects validate and print without dumping raster contents", {
   expect_error(ocular:::.validateOcular(bad_params), "unknown parameter")
 })
 
-test_that("print reports a pending pre-cleanup only while it is active", {
+test_that("print distinguishes mask states and retains active pending cleanup", {
   rs <- .make_test_rs()
   state_line <- function(x) grep("state:", capture.output(print(x)), value = TRUE)
+  expect_identical(state_line(rs), "  state:    no delineation mask")
+  empty <- rs
+  empty$state$alive_mat <- matrix(FALSE, rs$geom$nr, rs$geom$nc)
+  expect_identical(state_line(empty), "  state:    empty delineation mask")
   expect_match(state_line(trace_perimeter(rs)), "pre-cleanup pending", fixed = TRUE)
   segmented <- suppressMessages(segment_area(rs))
   expect_false(isTRUE(attr(segmented, "pending")$pre_cleanup$active))
   expect_identical(state_line(segmented),
-                   sprintf("  state:    %d alive px", sum(segmented$state$alive_mat)))
+                   sprintf("  state:    %d cells in delineation mask",
+                           sum(segmented$state$alive_mat)))
   delineated <- suppressMessages(boundary_delineation(rs))
   expect_identical(state_line(delineated),
-                   sprintf("  state:    %d alive px", sum(delineated$state$alive_mat)))
+                   sprintf("  state:    %d cells in delineation mask",
+                           sum(delineated$state$alive_mat)))
+})
+
+test_that("summaries expose stored user input even when values equal defaults", {
+  rs <- .make_test_rs()
+  explicit <- rs
+  explicit$params <- rs_params(area_sensitivity = 0.2)
+  ordinary_print <- capture.output(print(rs))
+  explicit_print <- capture.output(printed <- withVisible(print(explicit)))
+  ordinary_summary <- capture.output(summary(rs))
+  explicit_summary <- capture.output(summarised <- withVisible(summary(explicit)))
+
+  expect_false(identical(ordinary_print, explicit_print))
+  expect_false(identical(ordinary_summary, explicit_summary))
+  expect_true(any(grepl("area_sensitivity (user input)", explicit_print, fixed = TRUE)))
+  expect_true("--- stored parameters ---" %in% explicit_summary)
+  expect_true("area_sensitivity: 0.2 (user input)" %in% explicit_summary)
+  expect_true("All defaults, no user input." %in% ordinary_summary)
+  expect_identical(printed$value, explicit)
+  expect_false(printed$visible)
+  expect_identical(summarised$value, explicit)
+  expect_false(summarised$visible)
+
+  modified <- rs
+  modified$params$area_sensitivity <- 0.17
+  expect_true("area_sensitivity: 0.17" %in% capture.output(summary(modified)))
+  explicit$params <- rs_params(interior_sensitivity = NULL,
+                               perimeter_margins = c(0.5, 0.9))
+  values <- capture.output(summary(explicit))
+  expect_true("interior_sensitivity: NULL (user input)" %in% values)
+  expect_true("perimeter_margins: c(0.5, 0.9) (user input)" %in% values)
+
+  legacy <- rs
+  attr(legacy$params, "user_set") <- NULL
+  expect_true("All stored values match defaults. User input was not recorded." %in%
+                capture.output(summary(legacy)))
 })
 
 test_that("new objects use the ocular class", {

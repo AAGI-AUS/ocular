@@ -26,7 +26,8 @@ get_rs(
 area.}
 
 \item{start_date, end_date}{Start and end of the retrieval period, both
-inclusive.}
+inclusive. \code{end_date} must be at least two days after
+\code{start_date}.}
 
 \item{index_name}{Index calculated for the output scenes and used by
 \code{as_raster()} and \code{as_time_series()}. Field boundary delineation
@@ -54,9 +55,10 @@ using STAC metadata.}
 
 \item{search_index, search_start_date, search_end_date}{Inline overrides
 for the index and date range used for field boundary delineation.
-Search dates must lie within \code{start_date} and \code{end_date}. They
-do not restrict the dates available to output functions. \code{NULL}
-defers to \code{params}.}
+Search dates must lie within \code{start_date} and \code{end_date}.
+\code{search_end_date} must be at least two days after
+\code{search_start_date}. They do not restrict the dates available to
+output functions. \code{NULL} defers to \code{params}.}
 }
 \value{
 An \code{ocular} object containing the query, retrieved scenes,
@@ -69,6 +71,10 @@ object. The supplied point defines the centre of the analysis area. Field
 boundary delineation uses spectral features from one or more periods.
 }
 \details{
+The object retains observations for the requested output and detection
+settings. Temporal composites, the detection grid and calibration are
+prepared when delineation first needs them.
+
 Settings supplied through \code{params} are stored on the returned object.
 See \code{\link{rs_params}} for changing them in later calls.
 }

@@ -16,6 +16,9 @@ masks and included dates change from 0.1.1.
 - Align detection scenes on a common grid when their geometry differs.
 - Support single-scene raster output. Direct raster and time-series retrievals
   avoid unnecessary detection assets and feature preparation.
+- Deferred temporal composites, the detection grid and calibration until
+  delineation needs them. `get_rs()` retained output and detection observations,
+  so missing detection windows no longer blocked extraction.
 - Use the same analysis area for undelineated rasters and time series. Keep
   monthly and yearly rows in calendar order when fused scenes are present.
 - Correct fusion band stacking and exclude estimates or validation holdouts
@@ -47,6 +50,9 @@ masks and included dates change from 0.1.1.
   correctly and run when ocular is loaded without being attached.
 - Retry transient STAC failures in batch rounds and return completed results
   when interrupted. No-scene results and pipeline failures are final.
+- Kept `max_cloud_cover` fixed across all batch attempts. Deprecated and ignored
+  `cloud_relax`, with a warning when supplied. Results cached under the previous
+  retry policy were excluded from reuse.
 - Add an `outcomes` attribute to batch results, with one row per input site.
   It distinguishes success, empty success, failure and interruption, and records
   returned date counts, retrieval attempts and cache use. Cached progress
@@ -59,6 +65,11 @@ masks and included dates change from 0.1.1.
 
 ## Documentation and diagnostics
 
+- Made absent, nonempty and empty delineation masks explicit in console output.
+  Marked stored user choices with `(user input)`, including values equal to
+  defaults.
+- Documented date-column types and the complete delineation sequence. Added a
+  daily plotting example and clarified minimum date intervals.
 - Clarify errors for invalid settings, missing feature windows, unusable FTW
   references and unsupported fusion-validation input. Report dropped
   acquisitions and preserve the cause of failed catalogue queries.

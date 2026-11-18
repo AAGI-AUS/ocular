@@ -9,6 +9,10 @@
 #' object. The supplied point defines the centre of the analysis area. Field
 #' boundary delineation uses spectral features from one or more periods.
 #'
+#' The object retains observations for the requested output and detection
+#' settings. Temporal composites, the detection grid and calibration are
+#' prepared when delineation first needs them.
+#'
 #' Settings supplied through \code{params} are stored on the returned object.
 #' See \code{\link{rs_params}} for changing them in later calls.
 #'
@@ -30,7 +34,8 @@
 #' @param longitude,latitude WGS-84 coordinates at the centre of the analysis
 #'   area.
 #' @param start_date,end_date Start and end of the retrieval period, both
-#'   inclusive.
+#'   inclusive. \code{end_date} must be at least two days after
+#'   \code{start_date}.
 #' @param index_name Index calculated for the output scenes and used by
 #'   \code{as_raster()} and \code{as_time_series()}. Field boundary delineation
 #'   uses \code{search_index} instead (\code{"EVI2"} by default).
@@ -51,9 +56,10 @@
 #'   \code{rs_params()}. \code{NULL} uses the defaults.
 #' @param search_index,search_start_date,search_end_date Inline overrides
 #'   for the index and date range used for field boundary delineation.
-#'   Search dates must lie within \code{start_date} and \code{end_date}. They
-#'   do not restrict the dates available to output functions. \code{NULL}
-#'   defers to \code{params}.
+#'   Search dates must lie within \code{start_date} and \code{end_date}.
+#'   \code{search_end_date} must be at least two days after
+#'   \code{search_start_date}. They do not restrict the dates available to
+#'   output functions. \code{NULL} defers to \code{params}.
 #' @returns An \code{ocular} object containing the query, retrieved scenes,
 #'   and stored parameters.
 #' @examples
@@ -205,7 +211,7 @@ get_rs <- function(longitude,
     stop("Invalid start_date or end_date.", call. = FALSE)
   }
   if( as.numeric(out_end_d - out_start_d) < 2 ){
-    stop("Date range too short.", call. = FALSE)
+    stop("end_date must be at least two days after start_date.", call. = FALSE)
   }
 
   det_start_d <- suppressWarnings(as.Date(params$search_start_date %||% start_date))
@@ -218,7 +224,8 @@ get_rs <- function(longitude,
          call. = FALSE)
   }
   if( as.numeric(det_end_d - det_start_d) < 2 ){
-    stop("Detection date range too short.", call. = FALSE)
+    stop("search_end_date must be at least two days after search_start_date.",
+         call. = FALSE)
   }
 
   fetch_bbox <- point_to_bbox(longitude, latitude, x_metres, y_metres)
@@ -236,23 +243,12 @@ get_rs <- function(longitude,
          "and cloud filter.", call. = FALSE)
   }
 
-  # Defer features only for recognised output calls that do not need them.
-  # Other calls prepare features now. add_modis() is recognised by its bare name.
+  # Standalone output calls do not need extra detection bands.
   parent_call <- if( length(sys.calls()) >= 2L ) { sys.call(-1L) } else { NULL }
-  parent_fn <- if( is.null(parent_call) ){
-    NA_character_
-  }else if( is.symbol(parent_call[[1L]]) ){
-    as.character(parent_call[[1L]])
-  }else{
-    NA_character_
-  }
   # Compare the calling function so qualified and indirect output calls also work.
   parent_fun <- if( is.null(parent_call) ) { NULL } else { sys.function(-1L) }
   output_caller <- identical(parent_fun, as_raster) ||
     identical(parent_fun, as_time_series)
-  scenes_only_caller <- output_caller ||
-    identical(parent_fn, "add_modis")
-  need_features <- !scenes_only_caller
 
   # A different search index or period needs a separate detection series.
   # Reuse the fetched items and existing bands, fetching only missing bands.
@@ -278,11 +274,6 @@ get_rs <- function(longitude,
     }
     detection_scenes <- det_src
   }
-  if( need_detection && length(detection_scenes) == 0L ){
-    stop("No usable detection scenes remain for search_index '",
-         search_index, "' in the requested detection date range.",
-         call. = FALSE)
-  }
 
   rs <- .newOcular()
   rs$spec$point$longitude <- longitude
@@ -303,9 +294,6 @@ get_rs <- function(longitude,
 
   rs$params <- params
 
-  if( need_features ){
-    rs <- .fetchFeatureStack(rs)
-  }
   return(rs)
 }
 
@@ -622,17 +610,19 @@ get_rs <- function(longitude,
   rs$geom$nr <- nr
   rs$geom$nc <- nc
   rs$state$decided_mat <- matrix(FALSE, nr, nc)
-  # Calibration needs the completed feature grid. Record a failure without
-  # failing the scene retrieval.
+  # Keep self calibration as a fallback if an attached prior cannot calibrate.
   if( is.null(rs$internals$calibration) ){
+    self_rs <- rs
+    self_rs$geom$ftw_prior <- NULL
     rs$internals$calibration <- tryCatch(
-      .calibrateScene(rs),
+      .calibrateScene(self_rs),
       error = function(e){
         return(list(
           source = "self",
           error = conditionMessage(e),
           warnings = paste0(".calibrateScene() failed: ", conditionMessage(e))))
       })
+    rs <- .calibrateAttachedPrior(rs)
   }
 
   return(rs)

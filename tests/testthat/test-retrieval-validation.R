@@ -25,7 +25,8 @@ test_that("get_rs rejects invalid inputs before any STAC request", {
   expect_error(call_get(latitude = 85), "UTM-supported")
   expect_error(call_get(source = "unknown"), "should be one of")
   expect_error(call_get(start_date = "bad"), "could not be parsed")
-  expect_error(call_get(end_date = "2021-01-01"), "too short")
+  expect_error(call_get(end_date = "2021-01-01"),
+               "end_date must be at least two days after start_date.", fixed = TRUE)
   expect_error(call_get(x_metres = 0), "positive")
   expect_error(call_get(max_cloud_cover = NA_real_), "max_cloud_cover")
   expect_error(call_get(scl_classes = c(1, 1)), "unique")
@@ -36,6 +37,43 @@ test_that("get_rs rejects invalid inputs before any STAC request", {
   expect_error(call_get(index_name = "not-an-index"), "Unknown index_name")
   expect_error(call_get(params = list(search_start_date = "2020-12-01")),
                "must fall within")
+})
+
+test_that("get_rs explains date spans before retrieval and accepts two elapsed days", {
+  fetches <- 0L
+  testthat::local_mocked_bindings(.fetchStac = function(...){
+    fetches <<- fetches + 1L
+    stop("STAC fetch reached")
+  }, .package = "ocular")
+  start <- as.Date("2021-01-10")
+  for( span in c(-1, 0, 1) ){
+    search_message <- if( span < 0 ){
+      "search_start_date must be on or before search_end_date."
+    }else{
+      "search_end_date must be at least two days after search_start_date."
+    }
+    expect_error(
+      get_rs(117.8, -32, start, start + span,
+             source = "landsat-8", x_metres = 300),
+      "end_date must be at least two days after start_date.", fixed = TRUE)
+    expect_error(
+      get_rs(117.8, -32, "2021-01-01", "2021-01-31",
+             source = "landsat-8", x_metres = 300,
+             search_start_date = start, search_end_date = start + span),
+      search_message, fixed = TRUE)
+  }
+  expect_identical(fetches, 0L)
+  expect_error(
+    get_rs(117.8, -32, start, start + 2,
+           source = "landsat-8", x_metres = 300),
+    "STAC fetch reached", fixed = TRUE)
+  expect_identical(fetches, 1L)
+  expect_error(
+    get_rs(117.8, -32, "2021-01-01", "2021-01-31",
+           source = "landsat-8", x_metres = 300,
+           search_start_date = start, search_end_date = start + 2),
+    "STAC fetch reached", fixed = TRUE)
+  expect_identical(fetches, 2L)
 })
 
 test_that("get_rs names search_index when the source lacks it", {
@@ -111,7 +149,8 @@ test_that("get_rs assembles a valid object from an offline scene provider", {
   expect_true(is_rs(rs))
   expect_identical(rs$geom$source, "landsat-8")
   expect_equal(length(rs$scenes), 2L)
-  expect_s4_class(rs$internals$feature_stack, "SpatRaster")
+  expect_null(rs$internals$feature_stack)
+  expect_s4_class(segment_area(rs)$internals$feature_stack, "SpatRaster")
   expect_setequal(attr(rs$params, "user_set", exact = TRUE),
                   c("area_sensitivity", "search_index"))
   expect_invisible(ocular:::.validateOcular(rs))
@@ -160,10 +199,10 @@ test_that("standalone output calls skip the feature stack however written", {
                             source = "landsat-8", x_metres = 300))[[1L]],
     bare)
   expect_s4_class(suppressMessages(do.call(as_raster, args)), "SpatRaster")
-  expect_error(
-    suppressMessages(get_rs(117.8, -32, "2021-01-01", "2021-06-01",
-                            source = "landsat-8", x_metres = 300)),
-    "no scenes in window")
+  rs <- get_rs(117.8, -32, "2021-01-01", "2021-06-01",
+               source = "landsat-8", x_metres = 300)
+  expect_identical(as_time_series(rs), bare)
+  expect_error(segment_area(rs), "no scenes in window")
 })
 
 test_that("standalone output calls read no detection assets", {
@@ -196,9 +235,9 @@ test_that("standalone output calls read no detection assets", {
   expect_equal(nrow(ts), 2L)
   expect_s4_class(suppressMessages(do.call(as_raster, args)), "SpatRaster")
   expect_identical(n_reads, 0L)
-  expect_error(
-    suppressWarnings(suppressMessages(do.call(get_rs, args))),
-    "No usable detection scenes remain")
+  rs <- suppressWarnings(suppressMessages(do.call(get_rs, args)))
+  expect_equal(nrow(as_time_series(rs)), 2L)
+  expect_error(segment_area(rs), "no scenes available")
   expect_identical(n_reads, 2L)
 })
 

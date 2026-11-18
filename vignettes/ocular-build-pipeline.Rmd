@@ -101,6 +101,9 @@ even as `area_sensitivity = 0.2`, uses a scalar tolerance instead. A calibrated
 fill retains eligible calibrated signatures for later refinement when learned
 signatures are missing. See `?rs_params` and `?segment_area` for the full rules.
 
+The stored parameters do not record every override supplied to later calls.
+Keep the calls used for each comparison.
+
 For example, collect perimeter settings in a list for reuse:
 
 ```{r pipeline-settings}
@@ -187,11 +190,10 @@ An empty success contributes no time-series rows and is not a failure.
 `failures` supplies reasons for failed or interrupted sites.
 
 By default, a site has at most **three retrieval attempts**. Only classified
-temporary catalogue-query or transport errors are retried; no-scenes results,
-pipeline errors and asset-reading failures are final. On the final attempt,
-the default cloud-cover ceiling can rise from 50 to 80. Set `cloud_relax` equal
-to your requested ceiling to keep it fixed. `retries = Inf` allows unlimited
-transient retries and also keeps the requested ceiling. Interrupting a batch
+temporary catalogue-query or transport errors are retried. No-scenes results,
+pipeline errors and asset-reading failures are final. Every retrieval attempt
+uses the requested `max_cloud_cover`, including retries. `retries = Inf` allows
+unlimited transient retries. Interrupting a batch
 returns completed results and records unfinished sites. See `?batch_rs` for
 the complete retry rules.
 

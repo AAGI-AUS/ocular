@@ -77,11 +77,119 @@ test_that("batch rounds remove the nested STAC retries", {
   }, .package = "rstac")
   out <- batch_rs(.batch_test_sites(), cache = FALSE, quiet = TRUE, retries = 2L)
   expect_equal(visits, c(117.1, 117.2, 117.1, 117.2))
-  expect_equal(clouds, c(50, 50, 80, 80))
+  expect_equal(clouds, c(50, 50, 50, 50))
   expect_equal(requests, 4L)
   expect_equal(pauses, 1)
   expect_equal(attr(out, "failures")$attempts, c(2, 2))
   expect_match(attr(out, "failures")$last_error, "after 1 attempt")
+})
+
+test_that("default and explicit cloud ceilings stay fixed through successful retries", {
+  attempts <- 0L
+  clouds <- numeric()
+  testthat::local_mocked_bindings(
+    get_rs = function(..., longitude, max_cloud_cover){
+      attempts <<- attempts + 1L
+      clouds <<- c(clouds, max_cloud_cover)
+      if( attempts < 3L ){
+        stop(.batch_test_transient())
+      }
+      .batch_test_rs(longitude)
+    },
+    .batchPause = function(round) NULL,
+    .package = "ocular")
+
+  for( ceiling in list(NULL, 50, 35) ){
+    attempts <- 0L
+    clouds <- numeric()
+    args <- list(sites = .batch_test_sites("a"), cache = FALSE, quiet = TRUE,
+                  pipeline = .batch_test_pipeline)
+    if( !is.null(ceiling) ){
+      args$max_cloud_cover <- ceiling
+    }
+    out <- expect_warning(do.call(batch_rs, args), NA)
+    expected <- if( is.null(ceiling) ) { 50 } else { ceiling }
+    expect_equal(clouds, rep(expected, 3L))
+    expect_identical(attr(out, "outcomes")$status, "success")
+    expect_equal(attr(out, "outcomes")$attempts, 3)
+  }
+})
+
+test_that("legacy cloud relaxation warns once and never changes a retry", {
+  attempts <- 0L
+  clouds <- numeric()
+  warnings <- character()
+  testthat::local_mocked_bindings(
+    get_rs = function(..., longitude, max_cloud_cover){
+      attempts <<- attempts + 1L
+      clouds <<- c(clouds, max_cloud_cover)
+      if( attempts < 3L ){
+        stop(.batch_test_transient())
+      }
+      .batch_test_rs(longitude)
+    },
+    .batchPause = function(round) NULL,
+    .package = "ocular")
+
+  out <- withCallingHandlers(
+    batch_rs(.batch_test_sites("a"), max_cloud_cover = 35, cloud_relax = 80,
+             pipeline = .batch_test_pipeline, cache = FALSE, quiet = TRUE),
+    warning = function(w){
+      warnings <<- c(warnings, conditionMessage(w))
+      invokeRestart("muffleWarning")
+    })
+  expect_identical(warnings, paste0(
+    "batch_rs(): `cloud_relax` is deprecated and ignored. ",
+    "Retries keep `max_cloud_cover` unchanged."))
+  expect_equal(clouds, rep(35, 3L))
+  expect_identical(attr(out, "outcomes")$status, "success")
+  expect_equal(attr(out, "outcomes")$attempts, 3)
+})
+
+test_that("fixed-cloud requests leave old relaxed caches unused and reuse new results", {
+  cache_dir <- .test_artifact_dir("batch-fixed-cloud-cache")
+  cache_dir <- ocular:::.initialiseCacheDir(
+    cache_dir, "rs", ocular:::.RS_CACHE_VERSION, "test")
+  old_query <- list(
+    longitude = 117.1, latitude = -32,
+    start_date = "2021-01-01", end_date = "2021-02-01", index_name = "EVI2",
+    source = "auto", x_metres = 1000, y_metres = 1000,
+    max_cloud_cover = 50, params = rs_params(), retries = 3L,
+    retry_policy = "rounds-transient-v1", relaxed_final_attempt = TRUE,
+    cloud_relax = 80, pipeline_cache_key = "fixed-cloud",
+    package_version = as.character(utils::packageVersion("ocular")))
+  old_path <- file.path(cache_dir, paste0(
+    substr(ocular:::.stableHash(old_query), 1L, 24L), ".rds"))
+  old_cache <- list(
+    data = data.frame(source = "landsat-8", date = as.Date("2021-01-05"),
+                       value = 0.9),
+    meta = list(cloud_used = 80, attempts = 3,
+                retry_policy = "rounds-transient-v1"))
+  saveRDS(old_cache, old_path)
+  attempts <- 0L
+  testthat::local_mocked_bindings(get_rs = function(..., longitude){
+    attempts <<- attempts + 1L
+    .batch_test_rs(longitude)
+  }, .package = "ocular")
+  pipeline <- function(rs){
+    data.frame(date = as.Date("2021-01-05"), value = 0.4)
+  }
+  args <- list(sites = .batch_test_sites("a"), cache_dir = cache_dir,
+                pipeline = pipeline, pipeline_cache_key = "fixed-cloud",
+                quiet = TRUE)
+  first <- do.call(batch_rs, args)
+  expect_equal(first$value, 0.4)
+  expect_false(attr(first, "outcomes")$cached)
+  expect_equal(attr(first, "outcomes")$attempts, 1)
+  expect_identical(readRDS(old_path), old_cache)
+
+  args$cloud_relax <- 80
+  expect_warning(second <- do.call(batch_rs, args), "deprecated and ignored",
+                 fixed = TRUE)
+  expect_equal(second$value, 0.4)
+  expect_true(attr(second, "outcomes")$cached)
+  expect_equal(attr(second, "outcomes")$attempts, 0)
+  expect_equal(attempts, 1L)
 })
 
 test_that("rounds retry service errors and keep site order, final failures and empty successes", {
@@ -134,7 +242,7 @@ test_that("infinite rounds retain the requested cloud ceiling and return on inte
       pauses <<- c(pauses, round)
       if( round == 3 ) .batch_test_interrupt()
     }, .package = "ocular")
-  out <- batch_rs(.batch_test_sites(), retries = Inf, cloud_relax = 90,
+  out <- batch_rs(.batch_test_sites(), retries = Inf,
                    cache = FALSE, quiet = TRUE, pipeline = .batch_test_pipeline,
                    on_error = "stop")
   expect_equal(visits, rep(c(117.1, 117.2), 3))
@@ -245,8 +353,8 @@ test_that("completed results retain attempts in cache and are reused without ret
   expect_length(entries, 1L)
   meta <- readRDS(entries[[1L]])$meta
   expect_equal(meta$attempts, 3)
-  expect_equal(meta$cloud_used, 80)
-  expect_equal(meta$retry_policy, "rounds-transient-v1")
+  expect_equal(meta$cloud_used, 50)
+  expect_equal(meta$retry_policy, "rounds-fixed-cloud-v2")
   second <- run()
   expect_equal(attr(first, "outcomes")$attempts, 3)
   expect_equal(attr(second, "outcomes")$attempts, 0)
@@ -330,14 +438,12 @@ test_that("backoff grows between rounds and remains capped", {
   expect_equal(seconds, c(2, 4, 8, 16, 32, 60, 60, 60, 60))
 })
 
-test_that("cache identity separates finite and unlimited cloud and retry policies", {
-  key <- function(retries, cloud_relax = 80){
+test_that("cache identity records fixed clouds and separates retry budgets", {
+  key <- function(retries){
     ocular:::.rsCacheKey(117.1, -32, "2021-01-01", "2021-02-01", "EVI2",
-                          "auto", 1000, 1000, 50, rs_params(), retries,
-                          cloud_relax, "policy")
+                          "auto", 1000, 1000, 50, rs_params(), retries, "policy")
   }
   expect_false(identical(key(3L), key(Inf)))
-  expect_false(identical(key(Inf, 80), key(Inf, 90)))
   real_hash <- ocular:::.stableHash
   query <- NULL
   testthat::local_mocked_bindings(.stableHash = function(x){
@@ -345,10 +451,11 @@ test_that("cache identity separates finite and unlimited cloud and retry policie
     real_hash(x)
   }, .package = "ocular")
   key(Inf)
-  expect_identical(query$relaxed_final_attempt, FALSE)
-  expect_identical(query$retry_policy, "rounds-transient-v1")
+  expect_null(query$relaxed_final_attempt)
+  expect_null(query$cloud_relax)
+  expect_identical(query$retry_policy, "rounds-fixed-cloud-v2")
   key(3L)
-  expect_identical(query$relaxed_final_attempt, TRUE)
+  expect_identical(query$retry_policy, "rounds-fixed-cloud-v2")
 })
 
 test_that("empty pipeline results are successful and cached", {
