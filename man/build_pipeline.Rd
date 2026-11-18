@@ -7,9 +7,12 @@
 build_pipeline(pipeline, params = NULL)
 }
 \arguments{
-\item{pipeline}{A native-pipe expression composed of supported stage calls.
-Leave the initial \code{ocular} object out of the expression; it is
-supplied when the resulting function is called.}
+\item{pipeline}{A native-pipe expression using the supported stages.
+It may start with a stage, \code{rs}, or a name holding an \code{ocular}
+object. Each form uses the input passed when the pipeline is called.
+Other unbound names at the head are errors. A positional stage setting
+follows the supplied input. Retrieval calls and raster inputs are not
+supported.}
 
 \item{params}{Optional default \code{rs_params()} settings to store with the
 pipeline. \code{NULL} uses the settings on each input object. A
@@ -20,11 +23,10 @@ replaces these defaults for stages that do not supply their own.}
 A callable function with class \code{ocular_pipeline}.
 }
 \description{
-Captures a chain of supported processing and output calls as a callable
-\code{ocular_pipeline} object. Retrieval is not part of the captured chain:
-first create an \code{ocular} object with \code{get_rs()}, then pass that
-object to the resulting function. Values that can be evaluated when the
-pipeline is built are stored and reused on each run.
+Turns a chain of processing and output calls into a reusable function.
+Retrieve scenes with \code{get_rs()}, then pass the resulting \code{ocular}
+object to this function. Stage arguments are evaluated when the pipeline is
+built where possible, then reused on each run.
 }
 \details{
 Supported stages are \code{trace_perimeter()}, \code{segment_area()},

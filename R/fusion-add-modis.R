@@ -8,7 +8,8 @@
 #' spectral indices for dates represented by daily MCD43A4 NBAR data when no
 #' Landsat acquisition falls within three days. Each estimate uses the nearest
 #' Landsat acquisition as an anchor, is produced on the Landsat grid, and is
-#' appended as an estimated scene. It is not a satellite observation.
+#' appended as an estimated scene. It is not a satellite observation. A date is
+#' skipped when no MCD43A4 scene lies within one day of its anchor.
 #' Sentinel-2 objects are returned unchanged.
 #'
 #' This pathway is experimental. It uses MCD43A4 NBAR reflectance bands but
@@ -31,61 +32,68 @@
 #'   fusion is available and applicable.
 #' @export
 add_modis <- function(x, params = NULL, ...){
+
   if( is_rs(x) ){
-    if( ...length() > 0L )
+    if( ...length() > 0L ){
       stop("add_modis: piped mode does not accept additional arguments: ",
            paste(names(list(...)), collapse = ", "), ".", call. = FALSE)
+    }
     rs <- x
   }else{
     rs <- get_rs(longitude = x, params = params, ...)
   }
-  if( is.null(rs$scenes) || length(rs$scenes) == 0L )
+  if( is.null(rs$scenes) || length(rs$scenes) == 0L ){
     stop("add_modis: rs has no scenes.", call. = FALSE)
+  }
   if( identical(rs$geom$source, "sentinel-2") ){
-    message("add_modis: Sentinel-2 source -- no fusion needed.")
+    message("add_modis: Sentinel-2 fusion is not supported.")
     return(rs)
   }
-  is_fused <- vapply(rs$scenes, function(sc) isTRUE(sc$fused), logical(1L))
+  is_fused <- vapply(rs$scenes, function(sc){
+    return(isTRUE(sc$fused))
+  }, logical(1L))
   fine_scenes <- rs$scenes[!is_fused]
-  if( length(fine_scenes) == 0L )
+  if( length(fine_scenes) == 0L ){
     stop("add_modis: rs has no real fine-resolution anchor scenes.",
          call. = FALSE)
-  ## Preserve a fine-only detection list before the idempotence guard returns.
-  if( is.null(rs$internals$detection_scenes) )
+  }
+  # Keep delineation based on observed scenes, including on repeated calls.
+  if( is.null(rs$internals$detection_scenes) ){
     rs$internals$detection_scenes <- fine_scenes
+  }
   if( any(is_fused) ){
-    message("add_modis: fused scenes are already present; rs unchanged.")
+    message("add_modis: fused scenes are already present. No scenes were added.")
     return(rs)
   }
-  ## A scenes-only pipe is intentionally lazy. Freeze the real fine-resolution
-  ## scenes before appending synthetic fused scenes so subsequent boundary
-  ## detection is identical to the eager path.
+  # Save the observed scenes before adding estimates, so later delineation
+  # uses the same inputs whether features were fetched eagerly or lazily.
   index_name <- rs$spec$index_name
-  ## Fusion requires an index computable from both the fine (Landsat) and
-  ## coarse (MCD43A4) reflectance band sets. The index is validated for
-  ## the fine source at get_rs(); here it must also exist in the coarse lookup.
+  # The output index must be available from both Landsat and MCD43A4 bands.
   if( is.null(landsat_index_list[[index_name]]) ||
       is.null(mcd43a4_index_list[[index_name]]) ){
-    warning("Coarse-tier fusion not supported for index '", index_name,
-            "' (no Landsat/MCD43A4 reflectance mapping).", call. = FALSE)
+    warning("add_modis: fusion is not supported for index '", index_name,
+            "'. No scenes were added.", call. = FALSE)
     return(rs)
   }
-  l_entry  <- landsat_index_list[[index_name]]
+  l_entry <- landsat_index_list[[index_name]]
   m_assets <- mcd43a4_index_list[[index_name]]$assets
 
-  log_msg <- function(...) message("    ", ...)
-  ## Coarse tier: MCD43A4 daily 500 m NBAR (BRDF-normalised reflectance).
+  log_msg <- function(...){
+
+    return(message("    ", ...))
+  }
+  # MCD43A4 supplies daily reflectance at 500 m, normalised for viewing geometry.
   coarse_scenes <- tryCatch(
-    .fetchStac(bbox            = rs$geom$bbox,
-               start_date      = rs$spec$start_date,
-               end_date        = rs$spec$end_date,
-               index_name      = index_name,
+    .fetchStac(bbox = rs$geom$bbox,
+               start_date = rs$spec$start_date,
+               end_date = rs$spec$end_date,
+               index_name = index_name,
                max_cloud_cover = 100,
-               source          = "mcd43a4"),
+               source = "mcd43a4"),
     error = function(e){
       warning("add_modis: MCD43A4 retrieval failed: ", conditionMessage(e),
               call. = FALSE)
-      NULL
+      return(NULL)
     })
   if( is.null(coarse_scenes) || length(coarse_scenes) == 0L ){
     log_msg("add_modis: no MCD43A4 scenes available.")
@@ -94,12 +102,13 @@ add_modis <- function(x, params = NULL, ...){
   log_msg(sprintf("add_modis: %d MCD43A4 scenes fetched", length(coarse_scenes)))
 
   ref_r <- fine_scenes[[1L]]$index
-  ## Carry coarse reflectance bands in their native CRS for projection during
-  ## fusion.
+  # Keep coarse bands in their native CRS until fusion.
   coarse_b <- lapply(coarse_scenes, function(sc){
     b <- .orderedBands(sc$bands, m_assets)
-    if( is.null(b) ) return(NULL)
-    list(date = sc$date, bands = .bandsToMemory(b))
+    if( is.null(b) ){
+      return(NULL)
+    }
+    return(list(date = sc$date, bands = .bandsToMemory(b)))
   })
   coarse_b <- Filter(Negate(is.null), coarse_b)
   if( length(coarse_b) == 0L ){
@@ -107,24 +116,39 @@ add_modis <- function(x, params = NULL, ...){
     return(rs)
   }
 
-  ls_dates     <- vapply(fine_scenes, function(sc) as.numeric(sc$date), numeric(1))
-  coarse_dates <- vapply(coarse_b, function(sc) as.numeric(sc$date), numeric(1))
+  ls_dates <- vapply(fine_scenes, function(sc){
+    return(as.numeric(sc$date))
+  }, numeric(1))
+  coarse_dates <- vapply(coarse_b, function(sc){
+    return(as.numeric(sc$date))
+  }, numeric(1))
   tol_d <- 3L
+  coarse_tol_d <- 1L
 
   fused <- list()
   fusion_errors <- character(0L)
+  n_skipped <- 0L
   for( mi in seq_along(coarse_b) ){
     m_date <- coarse_dates[mi]
-    if( any(abs(ls_dates - m_date) <= tol_d) ) next
+    if( any(abs(ls_dates - m_date) <= tol_d) ){
+      next
+    }
     anchor_idx <- which.min(abs(ls_dates - m_date))
-    ## Fine reflectance bands at the anchor, on the reference grid, in the
-    ## fine index's band order.
     fine_raw <- .orderedBands(fine_scenes[[anchor_idx]]$bands, l_entry$assets)
-    if( is.null(fine_raw) ) next
-    fine_bands <- lapply(fine_raw, function(b)
-      terra::project(b, ref_r, method = "bilinear"))
+    if( is.null(fine_raw) ){
+      next
+    }
+    fine_bands <- lapply(fine_raw, function(b){
+      return(terra::project(b, ref_r, method = "bilinear"))
+    })
     names(fine_bands) <- l_entry$assets
     ci_t1 <- which.min(abs(coarse_dates - ls_dates[anchor_idx]))
+    # The target is already an MCD43A4 date, but the Landsat anchor also needs
+    # a nearby coarse scene.
+    if( abs(coarse_dates[ci_t1] - ls_dates[anchor_idx]) > coarse_tol_d ){
+      n_skipped <- n_skipped + 1L
+      next
+    }
     fr <- tryCatch(.fuseLandsatMODIS(fine_bands,
                                      coarse_b[[ci_t1]]$bands,
                                      coarse_b[[mi]]$bands,
@@ -134,34 +158,44 @@ add_modis <- function(x, params = NULL, ...){
                        fusion_errors,
                        paste0(as.character(coarse_b[[mi]]$date), ": ",
                               conditionMessage(e)))
-                     NULL
+                     return(NULL)
                    })
-    if( is.null(fr) ) next
+    if( is.null(fr) ){
+      next
+    }
     fused[[length(fused) + 1L]] <- list(
-      date        = as.Date(m_date, origin = "1970-01-01"),
-      index       = fr$index,
-      bands       = fr$bands,    ## retained for downstream output and validation
-      item_assets = list(),      ## synthetic scene -- no STAC assets to re-fetch
-      fused       = TRUE,
+      date = as.Date(m_date, origin = "1970-01-01"),
+      index = fr$index,
+      bands = fr$bands,    # Used by output and validation.
+      item_assets = list(),      # Estimated scenes have no STAC assets.
+      fused = TRUE,
       anchor_days = as.integer(abs(m_date - ls_dates[anchor_idx])),
-      residual    = fr$residual,
-      landsat_t1  = fr$landsat_t1)
+      residual = fr$residual,
+      landsat_t1 = fr$landsat_t1)
   }
-  if( length(fusion_errors) > 0L )
+  if( length(fusion_errors) > 0L ){
     warning("add_modis: fusion failed for ", length(fusion_errors),
             " candidate scene(s). First error: ", fusion_errors[[1L]],
             call. = FALSE)
+  }
+  if( n_skipped > 0L ){
+    log_msg(sprintf(paste0("add_modis: %d date(s) skipped, because no MCD43A4 ",
+                           "scene lies within 1 day of the anchor date."),
+                    n_skipped))
+  }
   log_msg(sprintf("add_modis: %d fused scenes created", length(fused)))
 
   base_tagged <- lapply(fine_scenes, function(sc){
-    sc$fused       <- isTRUE(sc$fused)
+    sc$fused <- isTRUE(sc$fused)
     sc$anchor_days <- sc$anchor_days %||% NA_integer_
-    sc$residual    <- sc$residual    %||% NULL
-    sc$landsat_t1  <- sc$landsat_t1  %||% NULL
-    sc
+    sc$residual <- sc$residual    %||% NULL
+    sc$landsat_t1 <- sc$landsat_t1  %||% NULL
+    return(sc)
   })
   all_scenes <- c(base_tagged, fused)
-  ord <- order(vapply(all_scenes, function(sc) as.numeric(sc$date), numeric(1)))
+  ord <- order(vapply(all_scenes, function(sc){
+    return(as.numeric(sc$date))
+  }, numeric(1)))
   rs$scenes <- all_scenes[ord]
   return(rs)
 }

@@ -196,7 +196,7 @@ test_that("delineation and fill interfaces have the canonical controls", {
       "perimeter_margins", "trace_iter", "multiple_areas",
       "merge_separate_areas", "area_separation_strict",
       "interior_sensitivity", "interior_threshold", "split_sensitivity",
-      "split_gate", "split_linear", "strictness"))
+      "split_gate", "split_linear", "strictness", "s2_processing"))
   expect_identical(
     names(formals(segment_area)),
     c("x", "area_sensitivity", "area_threshold", "strictness",
@@ -252,4 +252,41 @@ test_that("flood fill can reach every corner of a matching rectangle", {
   expect_true(all(filled$alive_mat))
   expect_true(all(filled$alive_mat[cbind(c(1L, 1L, nr, nr),
                                          c(1L, nc, 1L, nc))]))
+})
+
+test_that("flood fill completes on windows one row or one column wide", {
+  fill <- function(nr, nc, centre_rc){
+    ocular:::.floodFill(
+      feat_array = array(0.5, dim = c(nr, nc, 1L)),
+      centre_rc = centre_rc,
+      mu = 0.5,
+      area_sensitivity = 0.1,
+      area_threshold = c(0.2, 0.7),
+      min_windows_alive = 1L,
+      reserve_rows = c(1L, nr),
+      reserve_cols = c(1L, nc),
+      nr = nr,
+      nc = nc)$alive_mat
+  }
+  expect_identical(fill(1L, 9L, c(1L, 5L)), matrix(TRUE, 1L, 9L))
+  expect_identical(fill(9L, 1L, c(5L, 1L)), matrix(TRUE, 9L, 1L))
+
+  search <- function(nr, nc, centre_rc){
+    ocular:::.searchAreaWithWidens(
+      feat_array = array(0.5, dim = c(nr, nc, 1L)),
+      centre_rc = centre_rc,
+      mu = 0.5,
+      area_sensitivity = 0.1,
+      area_threshold = c(0.2, 0.7),
+      min_windows_alive = 1L,
+      local_alive_density = 0.5,
+      nr_full = nr,
+      nc_full = nc)
+  }
+  two_rows <- search(2L, 9L, c(2L, 5L))
+  expect_identical(dim(two_rows), c(2L, 9L))
+  expect_true(all(two_rows[2L, ]))
+  two_cols <- search(9L, 2L, c(5L, 2L))
+  expect_identical(dim(two_cols), c(9L, 2L))
+  expect_true(all(two_cols[, 2L]))
 })

@@ -19,24 +19,25 @@ form.}
 
 \item{interior_sensitivity}{Maximum permitted difference between a
 line-of-sight alive-pixel median and the seed signature before interior
-cells are reclassified. \code{NULL} disables interior refinement.}
+cells are reclassified. An explicit \code{NULL} disables interior
+refinement, and an omitted argument uses the stored setting.}
 
 \item{interior_threshold}{Inclusive lower and upper spectral index bounds.
-Alive interior cells outside the range are removed; during a divergent
+Alive interior cells outside the range are removed. During a divergent
 line-of-sight pass, in-range cells are retained or revived only when they
 also match the seed signature within \code{interior_sensitivity}.}
 
 \item{strictness}{Calibration control. It affects initial area growth when
 \code{segment_area()} must run and updates the calibration record for
-subsequent stages; it does not directly change the interior predicate. See
+subsequent stages. It does not directly change the interior predicate. See
 \code{?rs_params}.}
 
-\item{params}{Optional, possibly partial \code{rs_params()} list. Overlays
-\code{rs$params} for this call. \code{NULL} keeps the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{...}{Standalone mode forwards remaining arguments to \code{get_rs()}.
 Piped mode accepts further named \code{rs_params()} overrides for this
-call; unknown names error.}
+call. Unknown names are rejected.}
 }
 \value{
 An \code{ocular} object with its revised candidate field mask stored
@@ -45,12 +46,8 @@ An \code{ocular} object with its revised candidate field mask stored
 \description{
 Examines line-of-sight profiles within each candidate field and revises
 interior pixels whose spectral behaviour is inconsistent with the seed
-signature. It never moves pixels on the perimeter; use
-\code{trace_perimeter()} to refine the boundary itself. If no candidate mask
+signature. It can remove pixels on the perimeter, and revives pixels only
+between the outermost alive pixels of each row and column.
+\code{trace_perimeter()} refines the boundary itself. If no candidate mask
 exists, \code{segment_area()} runs first.
-}
-\details{
-Parameters stored in \code{rs$params} provide the base settings. Named
-arguments supplied here override the corresponding setting for this call
-only.
 }

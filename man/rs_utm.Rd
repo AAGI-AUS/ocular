@@ -13,7 +13,6 @@ rs_utm(rs)
 A character EPSG string (e.g. \code{"EPSG:32750"}).
 }
 \description{
-Six-degree zone derivation, including the standard Norway and Svalbard
-exceptions: hemisphere (326x north / 327x south) plus zone number.
-Computed on demand rather than cached on \code{rs}.
+Finds the UTM zone for the analysis centre, including the Norway and
+Svalbard exceptions, and returns its EPSG identifier.
 }

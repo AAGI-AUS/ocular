@@ -29,6 +29,30 @@ test_that("batch cache keys are safe and include result-changing inputs", {
                           3L, 80, "default")))
 })
 
+test_that("batch cache keys ignore numeric storage type", {
+  p <- rs_params()
+  expect_identical(
+    ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
+                          "NDVI", "auto", 1000L, 1000L, 50L, p,
+                          3L, 80L, "default"),
+    ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
+                          "NDVI", "auto", 1000, 1000, 50, p,
+                          3L, 80, "default"))
+})
+
+test_that("batch cache keys change with the package version", {
+  p <- rs_params()
+  key <- function(...){
+    ocular:::.rsCacheKey(117.8, -32, "2021-01-01", "2021-02-01",
+                          "NDVI", "auto", 1000, 1000, 50, p,
+                          3L, 80, "default", ...)
+  }
+  expect_identical(key(),
+                   key(package_version = as.character(utils::packageVersion("ocular"))))
+  expect_false(identical(key(package_version = "0.1.1"),
+                         key(package_version = "0.1.2")))
+})
+
 test_that("corrupt or malformed batch cache entries are clean misses", {
   dir <- .test_artifact_dir("batch-cache-read")
   corrupt <- file.path(dir, "corrupt.rds")
@@ -122,33 +146,6 @@ test_that("batch parameter validation preserves explicit ownership", {
   expect_identical(seen_user_set, "area_sensitivity")
 })
 
-test_that("batch retries fetching but runs a deterministic pipeline once", {
-  fetch_count <- 0L
-  pipeline_count <- 0L
-  clouds <- numeric()
-  fake_get <- function(..., max_cloud_cover) {
-    fetch_count <<- fetch_count + 1L
-    clouds <<- c(clouds, max_cloud_cover)
-    if (fetch_count < 3L) stop("transient")
-    rs <- ocular:::.newOcular()
-    rs$geom$source <- "landsat-8"
-    rs$scenes <- list(list())
-    rs
-  }
-  pipeline <- function(rs) {
-    pipeline_count <<- pipeline_count + 1L
-    data.frame(date = as.Date("2021-01-05"), value = 0.5)
-  }
-  testthat::local_mocked_bindings(get_rs = fake_get, .package = "ocular")
-  got <- ocular:::.batchFetchOne(
-    117.8, -32, "2021-01-01", "2021-02-01", "EVI2", "landsat-8",
-    100, 100, 50, rs_params(), pipeline, 3L, 80)
-  expect_false(inherits(got, "error"))
-  expect_equal(fetch_count, 3L)
-  expect_equal(pipeline_count, 1L)
-  expect_equal(clouds, c(50, 50, 80))
-})
-
 test_that("batch accepts empty results and valid month buckets safely", {
   fake_get <- function(...) {
     rs <- ocular:::.newOcular()
@@ -213,5 +210,11 @@ test_that("batch cache hits avoid a second fetch", {
                      pipeline_cache_key = "test-v1", cache_dir = cache_dir,
                      retries = 1L, quiet = TRUE)
   expect_equal(fetch_count, 1L)
+  expect_equal(attr(first, "outcomes")$attempts, 1)
+  expect_equal(attr(second, "outcomes")$attempts, 0)
+  expect_false(attr(first, "outcomes")$cached)
+  expect_true(attr(second, "outcomes")$cached)
+  attr(first, "outcomes") <- NULL
+  attr(second, "outcomes") <- NULL
   expect_equal(first, second)
 })

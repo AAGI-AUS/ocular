@@ -20,21 +20,23 @@ validate_data_fusion(
 )
 }
 \arguments{
-\item{x}{A \code{SpatRaster}, \code{data.frame}, or numeric longitude.}
+\item{x}{A \code{SpatRaster}, a \code{data.frame} with daily dates, or numeric
+longitude. Convert an \code{ocular} object with \code{as_raster()} or
+\code{as_time_series()} first.}
 
-\item{latitude, start_date, end_date}{Required for standalone form;
-ignored otherwise, when they are read from \code{rs_meta}.}
+\item{latitude, start_date, end_date}{Required for standalone form. Otherwise,
+these arguments are ignored and values are read from \code{rs_meta}.}
 
 \item{x_metres, y_metres}{Assessment-area dimensions. At least
 one is required for the standalone form. Piped modes use the
 dimensions recorded on the input.}
 
 \item{params}{Optional validated parameter list. In standalone mode,
-\code{NULL} uses \code{rs_params()} defaults; piped modes instead reuse
+\code{NULL} uses \code{rs_params()} defaults. Piped modes instead reuse
 the parameters recorded on the input unless this argument is supplied.}
 
 \item{min_valid_n}{Minimum number of valid (non-NA) paired
-values required for metric computation. The default is \code{4L}; Pearson
+values required for metric computation. The default is \code{4L}. Pearson
 correlation itself requires at least two pairs. Pixels or scenes below
 this threshold receive \code{NA} metrics. Raise it for stricter analysis.}
 
@@ -53,20 +55,24 @@ for the index that was produced. MCD43A4 product-specific quality layers
 are not yet applied.}
 
 \item{source}{Landsat source for the standalone assessment: \code{"auto"}
-(default) selects Landsat 8/9 from 2013 onward and Landsat 5/7 earlier;
-or choose \code{"landsat-8"} / \code{"landsat-5"}. Piped modes use the
+(default) selects Landsat 8/9 from 2013 onward and Landsat 5/7 earlier.
+Alternatives are \code{"landsat-8"} and \code{"landsat-5"}. Piped modes use the
 source recorded on their input and reject non-Landsat inputs.}
 }
 \value{
-A \code{data.frame} in standalone or piped-data-frame form, or a
-  \code{SpatRaster} in piped-raster form.
+A \code{data.frame} for standalone or time-series input, or a
+  \code{SpatRaster} for raster input. If no held-out scene can be estimated,
+  standalone calls return \code{NULL} and other forms return the input
+  unchanged. Input without \code{rs_meta} is returned unchanged with a warning.
 }
 \description{
 Holds out each available Landsat scene in turn, estimates its spectral index
 values from the nearest remaining Landsat anchor and MCD43A4 NBAR data, and
-compares the estimate with the held-out Landsat observation. The resulting
-metrics describe agreement for the selected data, place, and period. They do
-not establish general accuracy or replace independent validation.
+compares the estimate with the held-out Landsat observation. A held-out
+scene is skipped when it or its anchor has no MCD43A4 scene of its own within
+one day. The resulting metrics describe agreement for the selected data,
+place, and period. They do not establish general accuracy or replace
+independent validation.
 }
 \details{
 \strong{Modes:}
@@ -86,7 +92,7 @@ not establish general accuracy or replace independent validation.
 
 \strong{Metrics:} RMSE, MAE, bias (signed mean of \code{pred -
 obs}), and Pearson \code{r}. Per-scene metrics aggregate over
-pixels; per-pixel metrics aggregate over held-out scenes. Pixels (or
+pixels. Per-pixel metrics aggregate over held-out scenes. Pixels (or
 scenes) with fewer than \code{min_valid_n} valid pairs receive
 \code{NA} for all four metrics. The count column or layer
 (\code{n_pixels} or \code{n_scenes}) is always populated so the

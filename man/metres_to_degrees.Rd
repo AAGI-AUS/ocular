@@ -21,7 +21,7 @@ A named numeric vector with \code{x_degrees} along the parallel and
 \description{
 Converts a ground distance to its east-west and north-south angular spans at
 a given latitude using the WGS-84 ellipsoid. The ellipsoid radii are
-Simpson-averaged across a latitude band of width \code{distance}; this band
+Simpson-averaged across a latitude band of width \code{distance}. This band
 controls the averaging interval, not the distance being converted.
 }
 \examples{

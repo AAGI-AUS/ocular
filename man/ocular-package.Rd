@@ -17,11 +17,10 @@ need for labelled training data.
 \details{
 \code{\link{add_modis}} is an experimental option that uses daily MCD43A4
 NBAR data to estimate additional values for vegetative indices (VI) not
-covered by Landsat.
-These estimates are not satellite observations. MCD43A4
-product-specific quality layers are not yet applied. The leave-one-out
+covered by Landsat. These estimates are not satellite observations.
+MCD43A4 product-specific quality layers are not yet applied. The leave-one-out
 agreement metrics from \code{\link{validate_data_fusion}} apply to the
-selected data, place, and period; they do not establish general accuracy or
+selected data, place, and period. They do not establish general accuracy or
 replace independent validation.
 
 The main entry points are \code{\link{get_rs}} for retrieval,
@@ -34,14 +33,10 @@ default sequence. \code{\link{as_raster}} and
 
 \code{\link{add_ftw_prior}} can attach compatible field boundary GeoParquet
 data, including Fields of The World (FTW), as an optional prior. The default
-column names follow the fiboa schema; fiboa describes the data structure and
-is not another name for FTW. \code{\link{diagnose_against_ftw}} reports
-agreement with a field boundary reference. Accuracy claims require a
-separate, held-out reference when the attached polygon influenced the
-delineation.
-
-Whether the prior improves field boundary delineation requires independent
-validation. This is therefore an experimental feature.
+column names follow the fiboa schema, which describes the data structure.
+\code{\link{diagnose_against_ftw}} reports agreement with a reference polygon.
+This feature is experimental. Assessing whether the prior improves accuracy
+requires a separate reference that did not guide the delineation.
 }
 \seealso{
 Useful links:
@@ -53,6 +48,11 @@ Useful links:
 }
 \author{
 \strong{Maintainer}: Aidan Moller \email{aidan.moller@adelaide.edu.au}
+
+Authors:
+\itemize{
+  \item Aidan Moller \email{aidan.moller@adelaide.edu.au}
+}
 
 }
 \keyword{internal}

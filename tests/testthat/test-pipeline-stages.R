@@ -72,7 +72,7 @@ test_that("segment_area warns when it returns an empty mask", {
 
   expect_warning(
     out <- segment_area(.make_test_rs()),
-    "no candidate field was identified; the returned mask is empty",
+    "no candidate field was identified. The returned mask is empty",
     fixed = TRUE)
   expect_false(any(out$state$alive_mat))
 })
@@ -86,7 +86,7 @@ test_that("failed recalibration preserves a valid prior record", {
   expect_warning(
     out <- ocular:::.applyScenePriors(
       rs, utils::modifyList(rs$params, list(strictness = "tight"))),
-    "preserving")
+    "The prior calibration was preserved")
   expect_identical(out$internals$calibration, before)
 })
 
@@ -122,7 +122,7 @@ test_that("explicit NULL disables optional stages while omission inherits", {
       interior_calls <<- interior_calls + 1L
       rs
     },
-    .splitAreaRule = function() list(
+    .splitAreaRule = function(cell_medians = NULL) list(
       postprocess = function(rs, params, log_msg) rs),
     .runStagedWalk = function(rs, rule, params, log_msg){
       split_calls <<- split_calls + 1L
@@ -227,6 +227,24 @@ test_that("build_pipeline captures a reusable idiomatic stage chain", {
   expect_error(build_pipeline(stats::median()), "chain of stage")
 })
 
+test_that("a pipeline runs where the stage names are not visible", {
+  rs <- .make_test_rs()
+  pipeline <- build_pipeline(segment_area() |> as_time_series())
+  ## A copy of base R with no parent sees neither the package nor the rest of
+  ## the search path, as when ocular is loaded but not attached.
+  base_only <- list2env(as.list(baseenv(), all.names = TRUE), parent = emptyenv())
+  unattached <- new.env(parent = base_only)
+  assign("pipeline", pipeline, envir = unattached)
+  assign("rs", rs, envir = unattached)
+  out <- eval(quote(pipeline(rs)), envir = unattached)
+  expect_identical(out, as_time_series(suppressMessages(segment_area(rs))))
+
+  own_stage <- function(x, ...) "caller's own as_time_series"
+  assign("as_time_series", own_stage, envir = unattached)
+  expect_identical(eval(quote(pipeline(rs)), envir = unattached),
+                   "caller's own as_time_series")
+})
+
 test_that("a captured pipeline retains an explicit NULL stage disable", {
   rs <- suppressMessages(segment_area(.make_test_rs()))
   interior_calls <- 0L
@@ -292,4 +310,32 @@ test_that("closing boundary passes retain the whole-pipeline params overlay", {
                        cleanup_boundary = 0L)
   expect_true(isTRUE(trace_params[[length(trace_params) - 1L]]$multiple_areas))
   expect_true(isTRUE(trace_params[[length(trace_params)]]$multiple_areas))
+})
+
+test_that("a call-level strictness reaches the segment_area() run by a later stage", {
+  rs <- .make_test_rs()
+  fs <- rs$internals$feature_stack
+  for( i in seq_len(terra::nlyr(fs)) ){
+    jitter <- (sin(seq_len(terra::ncell(fs)) + i) * 43758.5453) %% 1 - 0.5
+    fs[[i]] <- fs[[i]] + terra::setValues(fs[[i]], 0.1 * jitter)
+  }
+  names(fs) <- c("w1", "w2")
+  rs$internals$feature_stack <- fs
+  rs$internals$calibration <- ocular:::.calibrateScene(rs)
+  expect_null(rs$state$alive_mat)
+
+  tight_area <- suppressWarnings(segment_area(rs, strictness = "tight"))
+  loose_area <- suppressWarnings(segment_area(rs, strictness = "loose"))
+  expect_false(identical(tight_area$state$alive_mat, loose_area$state$alive_mat))
+
+  for( stage in list(split_area, segment_interior) ){
+    for( area in list(tight_area, loose_area) ){
+      strictness <- area$internals$calibration$strictness
+      one_step <- suppressWarnings(stage(rs, strictness = strictness))
+      two_step <- suppressWarnings(stage(area, strictness = strictness))
+      listed <- suppressWarnings(stage(rs, params = list(strictness = strictness)))
+      expect_identical(one_step$state$alive_mat, two_step$state$alive_mat)
+      expect_identical(listed$state$alive_mat, two_step$state$alive_mat)
+    }
+  }
 })

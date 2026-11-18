@@ -24,9 +24,8 @@ as_time_series(
 within each area and time group. It must accept numeric input and
 \code{na.rm}, and return one numeric value. The default is \code{"mean"}.}
 
-\item{params}{Optional complete or partial list of settings accepted by
-\code{rs_params()}. These settings override \code{rs$params} for this
-call; \code{NULL} retains the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{multiple_areas}{Override for the corresponding \code{rs_params()}
 setting, controlling whether separate delineated areas are returned.}
@@ -47,7 +46,7 @@ A \code{data.frame}. Single-area or undelineated output contains
   fused estimates also contains \code{is_fused}, \code{anchor_days},
   \code{anchor_mae}, and \code{anchor_nmae}. The latter two measure mismatch
   between the fine and coarse anchors over the diagnostic mask (the union in
-  multiple-area output); they are not held-out prediction errors.
+  multiple-area output). They are not held-out prediction errors.
   \code{is_fused} does not denote a raw MODIS observation. An empty
   delineation returns zero rows.
 }
@@ -55,10 +54,6 @@ A \code{data.frame}. Single-area or undelineated output contains
 Summarises the requested index values within the analysis area or delineated
 field for each retrieved scene. Results may be grouped by day, month, or
 year. Supply \code{mask} to use an sf/sfc geometry directly.
-}
-\details{
-Parameters stored in \code{rs$params} are used by default. Named arguments
-supplied here override the corresponding setting for this call only.
 }
 \seealso{
 \code{\link{as_raster}}, \code{\link{get_rs}}

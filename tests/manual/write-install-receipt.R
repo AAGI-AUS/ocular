@@ -1,7 +1,7 @@
 #!/usr/bin/env Rscript
 
-# Record the checked tarball and the fresh installed ocular path immediately
-# after R CMD INSTALL. This script installs nothing and makes no network call.
+# After R CMD INSTALL, record the checked tarball and installed package path.
+# This script does not install or fetch anything.
 
 .enabled <- function(x) {
   identical(tolower(trimws(x)), "true")

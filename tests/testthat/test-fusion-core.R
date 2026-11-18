@@ -10,15 +10,25 @@ test_that("additive fusion applies the coarse delta and physical bounds", {
   c1 <- list(make_r(c(0.4, 0.95)), make_r(c(0.2, 0.1)))
   c2 <- list(make_r(c(0.5, 1.2)), make_r(c(0.25, -0.2)))
   delta <- ocular:::.fuseDelta(fine, c1, c2)
-  expect_equal(as.numeric(terra::values(delta[[1L]])[, 1L]), c(0.5, 1),
+  expect_equal(as.numeric(terra::values(delta$bands[[1L]])[, 1L]), c(0.5, 1),
                tolerance = 1e-7)
-  expect_equal(as.numeric(terra::values(delta[[2L]])[, 1L]), c(0.25, 0),
+  expect_equal(as.numeric(terra::values(delta$bands[[2L]])[, 1L]), c(0.25, 0),
                tolerance = 1e-7)
 
   idx_fun <- function(r) (r$nir08 - r$red) / (r$nir08 + r$red)
   fused <- ocular:::.fuseLandsatMODIS(fine, c1, c2, idx_fun)
   expect_true(inherits(fused$index, "SpatRaster"))
   expect_true(all(is.finite(terra::values(fused$index))))
+  expect_equal(as.numeric(terra::values(fused$index)), c(1 / 3, 1),
+               tolerance = 1e-6)
+  expect_equal(as.numeric(terra::values(fused$landsat_t1)),
+               c(0.2 / 0.6, 0.85 / 1.05), tolerance = 1e-6)
+  expect_identical(names(fused$index), "nir08")
+
+  app_fun <- function(r) terra::app(r, function(v) (v[1] - v[2]) / (v[1] + v[2]))
+  fused_app <- ocular:::.fuseLandsatMODIS(fine, c1, c2, app_fun)
+  expect_equal(as.numeric(terra::values(fused_app$index)), c(1 / 3, 1),
+               tolerance = 1e-6)
 })
 
 test_that("agreement metrics have the documented signs", {
@@ -181,4 +191,55 @@ test_that("fusion failures are surfaced instead of silently discarded", {
     loo <- ocular:::.validateCompute(rs, rs$params),
     "fusion failed.*synthetic validation failure")
   expect_null(loo)
+})
+
+test_that("fusion validation skips holdouts without their own MCD43A4 scenes", {
+  rs <- .make_test_rs()
+  coarse <- function(date){
+    r <- rs$scenes[[1L]]$index
+    list(date = as.Date(date),
+         bands = list(Nadir_Reflectance_Band2 = r,
+                      Nadir_Reflectance_Band1 = r / 2),
+         index = r, item_assets = list())
+  }
+  coarse_scenes <- list(coarse("2021-01-04"), coarse("2021-01-21"))
+  testthat::local_mocked_bindings(
+    .fetchCoarseNearDates = function(...) coarse_scenes,
+    .package = "ocular")
+  expect_no_warning(loo <- ocular:::.validateCompute(rs, rs$params))
+  expect_length(loo, 2L)
+
+  coarse_scenes <- list(coarse("2021-01-05"), coarse("2021-01-22"))
+  expect_warning(
+    loo <- ocular:::.validateCompute(rs, rs$params),
+    "2 holdout\\(s\\) skipped, because the anchor and the target date")
+  expect_null(loo)
+
+  rs$scenes[[1L]]$date <- as.Date("2021-01-21")
+  coarse_scenes <- list(coarse("2021-01-20"))
+  expect_warning(
+    loo <- ocular:::.validateCompute(rs, rs$params),
+    "2 holdout\\(s\\) skipped")
+  expect_null(loo)
+})
+
+test_that("add_modis skips dates whose anchor has no MCD43A4 scene within 1 day", {
+  rs <- .make_test_rs()
+  coarse <- function(date){
+    r <- rs$scenes[[1L]]$index
+    list(date = as.Date(date),
+         bands = list(Nadir_Reflectance_Band2 = r,
+                      Nadir_Reflectance_Band1 = r / 2),
+         index = r, item_assets = list())
+  }
+  coarse_scenes <- lapply(c("2021-01-07", "2021-01-10", "2021-01-11",
+                            "2021-01-12", "2021-01-13", "2021-01-19"), coarse)
+  testthat::local_mocked_bindings(
+    .fetchStac = function(...) coarse_scenes, .package = "ocular")
+  msgs <- testthat::capture_messages(out <- add_modis(rs))
+  fused <- Filter(function(sc) isTRUE(sc$fused), out$scenes)
+  expect_identical(lapply(fused, function(sc) sc$date),
+                   list(as.Date("2021-01-13")))
+  expect_true(any(grepl("3 date\\(s\\) skipped, because no MCD43A4 scene",
+                        msgs)))
 })

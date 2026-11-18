@@ -18,14 +18,14 @@ boundary_delineation(
 \item{x}{An \code{ocular} object in piped form, or longitude in standalone
 form.}
 
-\item{vi_sensitivity}{Generic sensitivity override. When supplied, fans
-out to \code{area_sensitivity}, \code{interior_sensitivity} and
-\code{split_sensitivity} for any not set explicitly via \code{...}.
-Not an \code{rs_params()} parameter.}
+\item{vi_sensitivity}{Sets \code{area_sensitivity},
+\code{interior_sensitivity} and \code{split_sensitivity} together, unless
+an individual value is supplied in \code{...}. This shorthand belongs to
+this function, not \code{rs_params()}.}
 
-\item{vi_threshold}{Generic threshold override. When supplied, fans out
-to \code{area_threshold} and \code{interior_threshold} for any not set
-explicitly via \code{...}. Not an \code{rs_params()} parameter.}
+\item{vi_threshold}{Sets \code{area_threshold} and
+\code{interior_threshold} together, unless an individual value is supplied
+in \code{...}. This shorthand belongs to this function, not \code{rs_params()}.}
 
 \item{strictness}{Calibration control forwarded to every stage. It selects
 the robustness multiple applied to measured per-window dispersion. See
@@ -34,8 +34,8 @@ the robustness multiple applied to measured per-window dispersion. See
 \item{cleanup_boundary}{Integer in \code{[0, 5]} giving the number of
 additional split-and-cleanup pairs in the middle phase. Default \code{2L}.}
 
-\item{params}{Optional, possibly partial \code{rs_params()} list. Overlays
-\code{rs$params} for the whole call. \code{NULL} keeps the stored settings.}
+\item{params}{Optional list of settings for this call. See
+\code{\link{rs_params}} for the settings and override rules.}
 
 \item{...}{Named \code{rs_params()} overrides forwarded to every stage.
 A stage-specific value here takes precedence over the generic
@@ -47,15 +47,16 @@ An \code{ocular} object with its delineated field mask stored in
   \code{state$alive_mat}.
 }
 \description{
-Runs ocular's default field boundary delineation workflow. It grows a
-candidate field around the query point, refines its perimeter and interior,
-and repeatedly attempts to separate adjoining fields. The stage order is
-fixed; \code{cleanup_boundary} controls only the number of additional
-split-and-cleanup pairs in the middle of the workflow.
+Combines area growth, perimeter cleanup, splitting and interior refinement
+in a fixed sequence. \code{cleanup_boundary} sets the number of additional
+split-and-cleanup pairs. The four stages can also be called individually
+to build a different sequence.
 }
 \details{
-Parameters stored in \code{rs$params} provide the base settings for every
-stage. Supply
-\code{params} to overlay settings for the whole workflow, or named
-arguments in \code{...} to override individual settings for this call only.
+If the object already has a mask, the workflow processes that mask again
+using the existing spectral data and current settings.
+
+The two closing cleanups use perimeter margins \code{c(0.3, 0.9)} and
+\code{c(0.5, 0.5, 1)}. Supply \code{perimeter_margins} in \code{...} to
+replace both values.
 }

@@ -12,7 +12,8 @@ diagnose_against_ftw(rs, reference = NULL)
 
 \item{reference}{Optional reference polygon supplied as an \code{sf},
 \code{sfc}, or \code{SpatVector} object. When \code{NULL}, the attached
-field boundary prior is used.}
+field boundary prior is used. A CRS is required for reprojection to the
+feature grid.}
 }
 \value{
 A list with \code{iou}, \code{f1}, \code{precision}, \code{recall}

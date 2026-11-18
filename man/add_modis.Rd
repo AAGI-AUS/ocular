@@ -27,7 +27,8 @@ For a Landsat \code{ocular} object, \code{add_modis()} estimates supported
 spectral indices for dates represented by daily MCD43A4 NBAR data when no
 Landsat acquisition falls within three days. Each estimate uses the nearest
 Landsat acquisition as an anchor, is produced on the Landsat grid, and is
-appended as an estimated scene. It is not a satellite observation.
+appended as an estimated scene. It is not a satellite observation. A date is
+skipped when no MCD43A4 scene lies within one day of its anchor.
 Sentinel-2 objects are returned unchanged.
 }
 \details{
