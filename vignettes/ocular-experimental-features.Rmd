@@ -95,12 +95,12 @@ fusion_validation
 
 The result has one row per held-out Landsat scene that could be estimated.
 `rmse`, `mae`, `bias` (estimate minus observation) and `r` summarise agreement
-across paired scene pixels; `n_pixels` gives their count. This call assesses
+across paired scene pixels. `n_pixels` gives their count. This call assesses
 the retrieved imagery for the query, not the mask in `field_fused`. Its metrics
 are not errors in the field-average time series.
 
 If no scene can be estimated, the standalone call returns `NULL`. Metrics are
-`NA` with fewer than `min_valid_n` pairs (default four); correlation is also
+`NA` with fewer than `min_valid_n` pairs (default four). Correlation is also
 `NA` for constant values. These results describe the selected query and do not
 establish performance elsewhere. See `?validate_data_fusion` for daily
 time-series and raster input.
@@ -133,14 +133,14 @@ instead informs delineation and does not impose a fixed output boundary.
 Before running this example, you need:
 
 - A compatible field boundary GeoParquet covering the point. The default
-  columns are `geometry` and `determination_datetime`; use `geometry_col` and
+  columns are `geometry` and `determination_datetime`. Use `geometry_col` and
   `datetime_col` for other names, or `datetime_col = NULL` for undated data.
 - The optional `duckdb` and `DBI` R packages, and DuckDB's locally installed
-  `spatial` extension. Remote files also need `httpfs`; reading source years
+  `spatial` extension. Remote files also need `httpfs`. Reading source years
   needs `icu`. ocular does not install extensions automatically. See
   `?add_ftw_prior` for setup requirements.
 - The geometry's **source CRS**. `crs = 4326` below assumes the file uses
-  EPSG:4326; change it to match your dataset.
+  EPSG:4326. Change it to match your dataset.
 
 Retrieve an object, replace the placeholder path with your file, and attach
 the prior before delineation:

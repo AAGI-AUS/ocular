@@ -1,6 +1,6 @@
 # Soft-prior admission penalty: mechanism contract (.floodFill) and the
 # per-rung slice + default no-op through the widen ladder (.searchAreaWithWidens).
-# Pure base R -- no terra/sf needed (the prior is a logical matrix; the
+# Pure base R: no terra/sf needed (the prior is a logical matrix, and the
 # polygon -> matrix rasterise that does need terra is covered in test-ftw-core.R).
 
 # Synthetic 21x21 scene shared by the .floodFill block: a solid 0.5 field on
@@ -50,11 +50,11 @@ test_that(".floodFill soft-prior penalty honours its admission contract", {
 })
 
 test_that(".searchAreaWithWidens per-rung prior slice is dimensionally sound", {
-  # nr=nc=30 -> sqrt(2) ladder rungs 14,21,30 (>=2 descents); the largest
+  # nr=nc=30 -> sqrt(2) ladder rungs 14,21,30 (>=2 descents). The largest
   # rung is the full window (== the .floodFill block above), so the NON-
   # trivial coverage is the clamped sub-windows. All-veg feat so every
   # rung's fill reaches its boundary and the loop does NOT early-return,
-  # exercising the slice at every rung. proto_prior.R never hits this path.
+  # exercising the slice at every rung.
   nr <- 30L; nc <- 30L; nw <- 2L
   feat <- array(0.5, dim = c(nr, nc, nw)); mu <- rep(0.5, nw)
   saw <- function(centre, prior, strength, cross)

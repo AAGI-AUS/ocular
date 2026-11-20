@@ -20,7 +20,9 @@ Requires R 4.1 or later. Install from GitHub:
 if( !requireNamespace("pak", quietly = TRUE) ){
   install.packages("pak")
 }
-pak::pak("AAGI-AUS/ocular")
+pak::pak(c("knitr", "rmarkdown"))
+options(pkg.build_vignettes = TRUE) # leave out if you don't want the vignettes
+pak::pak("AAGI-AUS/ocular?reinstall")
 ```
 
 ## Try it
@@ -50,12 +52,12 @@ terra::plot(vi_raster)
 head(vi_series)
 ```
 
-The raster shows median NDVI across retrieved scenes; the time series contains
+The raster shows median NDVI across retrieved scenes. The time series contains
 `date` and `value`, with mean NDVI within the candidate field for each available
 day. Inspect the delineation before using it in an analysis. An empty mask gives
 an all-`NA` raster and no time-series rows.
 
-The default cloud-cover filter selects scenes; per-pixel masking is optional.
+The default cloud-cover filter selects scenes. Per-pixel masking is optional.
 To extract values within an existing field polygon, use the output functions'
 `mask` argument instead of delineating a field.
 
@@ -68,6 +70,6 @@ To extract values within an existing field polygon, use the output functions'
 - [Experimental features](vignettes/ocular-experimental-features.Rmd): field
   boundary priors and Landsat-MODIS fusion, including their validation limits.
 
-Use `help(package = "ocular")` for the function reference. Installations built
-with vignettes also support `browseVignettes("ocular")`.
-See [NEWS](NEWS.md) for changes in 0.1.2.
+Use `help(package = "ocular")` for the function reference. If you installed
+the guides (see [Installation](#installation)), `browseVignettes("ocular")`
+lists them. See [NEWS](NEWS.md) for changes in 0.1.2.

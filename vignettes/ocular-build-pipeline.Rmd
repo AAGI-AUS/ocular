@@ -43,7 +43,7 @@ terra::plot(as_raster(field))
 ```
 
 For a new comparison, start each run from `rs`. Here `"tight"` illustrates a
-change to the calibrated matching tolerance; it is not a recommendation for
+change to the calibrated matching tolerance. It is not a recommendation for
 this site.
 
 ```{r compare-settings, eval=FALSE}
@@ -52,8 +52,8 @@ terra::plot(as_raster(field_tight))
 ```
 
 Passing `field` instead reruns the workflow on its current mask. Area filling
-searches within that mask using existing spectral data and fresh stage state;
-later refinement stages can remove or revive cells. An empty input mask stays
+searches within that mask using existing spectral data and fresh stage state.
+Later refinement stages can remove or revive cells. An empty input mask stays
 empty, so return to `rs` to try another delineation.
 
 ```{r refine-current-mask, eval=FALSE}
@@ -91,7 +91,7 @@ the sequence.
 
 Settings supplied to `get_rs()` are stored on its object. Later calls can
 override them without changing that stored list. In `rs_params()`, only the
-settings you supply explicitly override stored or calibrated values; filled-in
+settings you supply explicitly override stored or calibrated values. Filled-in
 defaults leave those values in place. Every entry in a plain named list is
 explicit.
 
@@ -115,7 +115,7 @@ pipeline_params <- rs_params(
 
 These illustrative settings leave calibrated area matching available. Low-level
 controls and calibration defaults need validation for the intended use. Prefer
-a small, explicit change when comparing settings; selecting particular
+a small, explicit change when comparing settings. Selecting particular
 `search_windows` also requires those windows to exist in each input.
 
 ## Reuse a processing chain
@@ -203,7 +203,7 @@ per-pixel masking, retrieve sites individually with `get_rs()`.
 ### Reuse results or supply a custom pipeline
 
 Completed results are cached by default. Repeating a matching request reuses
-them; `cache = FALSE` retrieves and processes them again. Custom pipelines are
+them. `cache = FALSE` retrieves and processes them again. Custom pipelines are
 cached only when you supply `pipeline_cache_key`. Change the key whenever the
 pipeline or its captured values change.
 
@@ -219,9 +219,9 @@ series <- batch_rs(
 ```
 
 A custom pipeline must return `date` and one numeric `value` column. Batch
-output retains these and the site/index/source labels; extra columns, including
+output retains these and the site/index/source labels. Extra columns, including
 fusion diagnostics, are discarded. The default batch maps a multi-area `union`
-to `value`; a custom pipeline must make that choice itself.
+to `value`, but a custom pipeline must make that choice itself.
 
 ## Retain disconnected areas
 
