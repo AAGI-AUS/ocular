@@ -540,7 +540,7 @@ test_that("the Sentinel-2 offset is removed for each item from baseline 04.00", 
                            datatype = "INT2U", overwrite = TRUE)
       }
     }
-    ## SCL class 8 at one cell of each tile; the mask is never shifted.
+    ## SCL class 8 at one cell of each tile. The mask is never shifted.
     scl <- rep(4L, terra::ncell(r))
     centre <- cbind(mean(tiles[[tn]]), (y0 + y1) / 2)
     scl[[terra::cellFromXY(r, centre)]] <- 8L

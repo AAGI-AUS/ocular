@@ -34,7 +34,7 @@ Data Catalog. They are not executed when this guide is built.
 
 Choose a point inside the intended field, a date range, and the size of the
 surrounding analysis area. Coordinates are longitude and latitude in WGS 84.
-Here `x_metres = 1000` sets a 1,000 m square; supply `y_metres` for a different
+Here `x_metres = 1000` sets a 1,000 m square. Supply `y_metres` for a different
 height. Both dates are inclusive.
 
 ```{r retrieve-scenes, eval=FALSE}
@@ -62,7 +62,7 @@ You can use `rs` directly for raster or time-series extraction.
 
 `boundary_delineation()` uses the supplied point as a seed and compares
 spectral values across dates. It stores a candidate field mask on the returned
-object. It does not classify crop production status; check the result for your
+object. It does not classify crop production status. Check the result for your
 location and intended use.
 
 ```{r delineate-and-convert, eval=FALSE}
@@ -111,7 +111,7 @@ write.csv(vi_series, "field-ndvi.csv", row.names = FALSE)
   For delineation, review the reported detection dates and available imagery.
 - **No candidate field was identified:** the raster is all `NA` and the series
   has no rows. Check the point and imagery. Use a new `get_rs()` call to change
-  the point, dates or retrieval filters; reuse `rs` to compare delineation
+  the point, dates or retrieval filters. Reuse `rs` to compare delineation
   settings. An unchanged call will repeat the same analysis.
   An empty mask is not replaced by the full analysis area.
 - **The mask is nonempty but some dates or values are absent:** cloud/quality
@@ -149,7 +149,7 @@ compare it with the candidate:
 diagnose_against_ftw(field, reference = field_boundary)
 ```
 
-You must supply a suitable reference; ocular does not retrieve one or check
+You must supply a suitable reference: ocular does not retrieve one or check
 its date. A boundary used to guide delineation or choose settings is not
 independent. See `?diagnose_against_ftw` for the agreement metrics.
 
@@ -157,15 +157,15 @@ independent. See `?diagnose_against_ftw` for the agreement metrics.
 
 **Source.** Set `source` explicitly for a consistent sensor family:
 `"sentinel-2"`, `"landsat-8"` (Landsat 8/9), or `"landsat-5"` (Landsat 5/7).
-The default `"auto"` chooses one family from the start date; see `?get_rs`.
+The default `"auto"` chooses one family from the start date. See `?get_rs`.
 For duplicate Sentinel-2 products from the same acquisition and tile, ocular
 keeps the highest available processing baseline by default. `s2_processing`
 in `?rs_params` describes the alternative and incomplete-metadata handling.
 
 **Clouds and quality.** `max_cloud_cover` filters whole scenes using catalogue
 metadata. It does not mask pixels. `scl_classes` optionally excludes Sentinel-2
-SCL class values or Landsat `QA_PIXEL` bit positions; the default `NULL` applies
-no per-pixel mask. Choose exclusions for the selected sensor; its class or bit
+SCL class values or Landsat `QA_PIXEL` bit positions. The default `NULL` applies
+no per-pixel mask. Choose exclusions for the selected sensor: its class or bit
 numbers are not interchangeable with another sensor's.
 
 **Indices and dates.** `index_name` controls the output values. Delineation uses

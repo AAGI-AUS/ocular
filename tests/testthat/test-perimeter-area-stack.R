@@ -1,4 +1,4 @@
-.d16_area_stack <- function(){
+.two_area_stack <- function(){
 
   rs <- .make_test_rs(n = 41L)
   alive <- matrix(FALSE, 41L, 41L)
@@ -10,7 +10,7 @@
   return(as_raster(rs, multiple_areas = TRUE))
 }
 
-.d16_expected <- function(x, multiple_areas){
+.two_area_expected <- function(x, multiple_areas){
 
   keep <- rep(FALSE, terra::ncell(x))
   for( name in c("area_1", "area_2") ){
@@ -31,7 +31,7 @@
 }
 
 test_that("raster cleanup unions cleaned areas before masking original values", {
-  x <- .d16_area_stack()
+  x <- .two_area_stack()
   original <- terra::values(x)
   expect_equal(colSums(!is.na(original)), c(area_1 = 316, area_2 = 295, union = 611))
 
@@ -39,7 +39,7 @@ test_that("raster cleanup unions cleaned areas before masking original values", 
     out <- trace_perimeter(x, perimeter_margins = c(0.5, 0.9),
                            multiple_areas = multiple)
     values <- terra::values(out)
-    expect_identical(values, .d16_expected(x, multiple))
+    expect_identical(values, .two_area_expected(x, multiple))
     expect_equal(colSums(!is.na(values)), c(area_1 = 315, area_2 = 294, union = 609))
     expect_identical(!is.na(values[, "union"]),
                      !is.na(values[, "area_1"]) | !is.na(values[, "area_2"]))
@@ -50,7 +50,7 @@ test_that("raster cleanup unions cleaned areas before masking original values", 
 })
 
 test_that("area cleanup retains layer order, values and per-area settings", {
-  x <- .d16_area_stack()
+  x <- .two_area_stack()
   values <- terra::values(x)
   values[!is.na(values[, 1L]), 1L] <- -seq_len(sum(!is.na(values[, 1L])))
   values[!is.na(values[, 2L]), 2L] <- seq_len(sum(!is.na(values[, 2L]))) / 1000
@@ -61,7 +61,7 @@ test_that("area cleanup retains layer order, values and per-area settings", {
   terra::values(x) <- values
 
   for( multiple in c(FALSE, TRUE) ){
-    expected <- .d16_expected(x, multiple)
+    expected <- .two_area_expected(x, multiple)
     out <- trace_perimeter(x, perimeter_margins = c(0.5, 0.9),
                            multiple_areas = multiple)
     expect_identical(terra::values(out), expected)
@@ -78,13 +78,13 @@ test_that("area cleanup retains layer order, values and per-area settings", {
 })
 
 test_that("the derived union does not supply an independent cleanup mask", {
-  x <- .d16_area_stack()
+  x <- .two_area_stack()
   values <- terra::values(x)
   values[, "area_1"] <- NA_real_
   values[1L, "union"] <- 9
   terra::values(x) <- values
   out <- trace_perimeter(x, perimeter_margins = c(0.5, 0.9))
-  expect_identical(terra::values(out), .d16_expected(x, FALSE))
+  expect_identical(terra::values(out), .two_area_expected(x, FALSE))
   expect_equal(colSums(!is.na(terra::values(out))), c(area_1 = 0, area_2 = 294, union = 294))
 
   values[, "area_2"] <- NA_real_
@@ -94,7 +94,7 @@ test_that("the derived union does not supply an independent cleanup mask", {
 })
 
 test_that("generic raster stacks retain their first-layer cleanup rule", {
-  x <- .d16_area_stack()
+  x <- .two_area_stack()
   names(x) <- c("date_1", "date_2", "date_3")
   out <- trace_perimeter(x, perimeter_margins = c(0.5, 0.9))
   first <- trace_perimeter(x[[1L]], perimeter_margins = c(0.5, 0.9))
